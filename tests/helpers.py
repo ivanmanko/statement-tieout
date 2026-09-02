@@ -11,8 +11,8 @@ DATE_X, DESC_X, LEFT_X, RIGHT_X, BALANCE_X = 30.0, 90.0, 330.0, 410.0, 490.0
 CHAR_WIDTH = 6.0
 
 
-def word(text: str, x0: float, top: float) -> Word:
-    return Word(text=text, x0=x0, x1=x0 + len(text) * CHAR_WIDTH, top=top)
+def word(text: str, x0: float, top: float, height: float = 10.0) -> Word:
+    return Word(text=text, x0=x0, x1=x0 + len(text) * CHAR_WIDTH, top=top, height=height)
 
 
 def line(top: float, *cells: tuple[float, str]) -> list[Word]:
@@ -69,4 +69,13 @@ def two_column_row(
     ):
         if amount is not None:
             words.extend(right_aligned(top, right, amount))
+    return words
+
+
+def big(top: float, x0: float, text: str, height: float = 14.0) -> list[Word]:
+    """A line set in larger type — how a letterhead differs from body text."""
+    words, x = [], x0
+    for token in text.split():
+        words.append(Word(text=token, x0=x, x1=x + len(token) * CHAR_WIDTH, top=top, height=height))
+        x += len(token) * CHAR_WIDTH + 4.0
     return words

@@ -8,17 +8,14 @@ dependencies = [
     "pypdfium2>=4.30",
     "pydantic>=2.9",
     "anthropic>=0.40",
+    "rapidocr-onnxruntime>=1.4",
 ]
 
 [project.scripts]
 statement-tieout = "statement_tieout.cli:main"
 
 [dependency-groups]
-dev = [
-    "pytest>=8.3",
-    "rapidocr-onnxruntime>=1.4.4",
-    "ruff>=0.6",
-]
+dev = ["pytest>=8.3", "ruff>=0.6"]
 
 [build-system]
 requires = ["hatchling"]

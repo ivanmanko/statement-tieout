@@ -1074,12 +1074,12 @@ dependencies = [
     { name = "pdfplumber" },
     { name = "pydantic" },
     { name = "pypdfium2" },
+    { name = "rapidocr-onnxruntime" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
-    { name = "rapidocr-onnxruntime" },
     { name = "ruff" },
 ]
 
@@ -1089,12 +1089,12 @@ requires-dist = [
     { name = "pdfplumber", specifier = ">=0.11" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pypdfium2", specifier = ">=4.30" },
+    { name = "rapidocr-onnxruntime", specifier = ">=1.4" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.3" },
-    { name = "rapidocr-onnxruntime", specifier = ">=1.4.4" },
     { name = "ruff", specifier = ">=0.6" },
 ]
 

@@ -42,10 +42,16 @@ def extract_result(pdf_path: str) -> ExtractResult:
 
     warnings: list[str] = []
     scanned = [page.number for page in pages if is_scanned(page)]
+    unread = [page.number for page in pages if page.source == "empty"]
     if scanned:
         warnings.append(
-            f"{len(scanned)} page(s) carry no text layer and were not parsed "
-            f"(pages {scanned[:10]}); transcription of scans is out of scope"
+            f"{len(scanned)} page(s) carry no text layer and were read by OCR "
+            f"(pages {scanned[:10]}); descriptions from a scan are less faithful "
+            "than descriptions from a text layer"
+        )
+    if unread:
+        warnings.append(
+            f"{len(unread)} page(s) yielded nothing at all, not even by OCR (pages {unread[:10]})"
         )
 
     periods = []

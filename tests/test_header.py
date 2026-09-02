@@ -11,6 +11,8 @@ from decimal import Decimal
 from statement_tieout.parse.header import build_summary, read_header
 from statement_tieout.schema import Transaction
 
+from .helpers import big, line
+
 GREAT_LAKES = [
     "GREAT LAKES COMMERCE BANK",
     "Business Checking Statement",
@@ -161,3 +163,94 @@ class TestBuildSummary:
         summary = build_summary(read_header(["ACME BANK"]), self.rows())
         assert summary.beginning_balance == Decimal("0.00")
         assert summary.ending_balance == Decimal("70.00")
+
+
+class TestHorizontalSummaryBlock:
+    """SPEC §7.5 — labels on one row, amounts on the next, matched by column.
+
+    Fulton Bank prints its summary this way, and so do Chase and BofA. A
+    reader that only knows the vertical layout finds no summary at all.
+    """
+
+    def block(self):
+        return [
+            line(100.0, (50.0, "Prior Statement Balance"),
+                 (200.0, "Total Deposits/Credits"),
+                 (330.0, "Total Checks/Debits"),
+                 (450.0, "Ending Statement Balance")),
+            line(112.0, (55.0, "$1,908,989.60"), (205.0, "$4,351,230.63"),
+                 (335.0, "$4,384,606.59"), (455.0, "$1,875,613.64")),
+        ]
+
+    def test_each_amount_is_matched_to_the_label_above_it(self):
+        reading = read_header(self.block())
+        assert reading.beginning_balance == Decimal("1908989.60")
+        assert reading.deposits_total == Decimal("4351230.63")
+        assert reading.withdrawals_total == Decimal("4384606.59")
+        assert reading.ending_balance == Decimal("1875613.64")
+
+    def test_all_four_are_marked_printed(self):
+        assert read_header(self.block()).printed_fields == {
+            "beginning_balance", "ending_balance", "deposits_total", "withdrawals_total",
+        }
+
+    def test_a_label_row_needs_at_least_two_labels(self):
+        """One label and no amount is a stray word, not a summary block."""
+        rows = [line(100.0, (50.0, "Total Deposits/Credits")), line(112.0, (55.0, "$1.00"))]
+        assert read_header(rows).deposits_total is None
+
+    def test_the_vertical_layout_still_works_when_words_are_given(self):
+        rows = [line(100.0, (50.0, "Beginning balance"), (300.0, "$2,014,882.47"))]
+        assert read_header(rows).beginning_balance == Decimal("2014882.47")
+
+
+class TestWhitespaceInsensitiveLabels:
+    """SPEC §7.5 — OCR loses spaces, and a label split differently is the same label."""
+
+    def test_a_label_run_together_still_matches(self):
+        assert read_header(["PriorStatementBalance 1,908,989.60"]).beginning_balance == Decimal(
+            "1908989.60"
+        )
+
+    def test_new_labels_from_the_fulton_statement(self):
+        reading = read_header([
+            "Prior Statement Balance 1,908,989.60",
+            "Ending Statement Balance 1,875,613.64",
+        ])
+        assert reading.beginning_balance == Decimal("1908989.60")
+        assert reading.ending_balance == Decimal("1875613.64")
+
+
+class TestLetterheadBySize:
+    """SPEC §7.15 — the bank name is the biggest text, not the first tidy line."""
+
+    def test_the_largest_line_wins_even_with_a_postcode(self):
+        rows = [
+            line(60.0, (300.0, "532 85")),
+            line(72.0, (50.0, "P.O.Box 4887 Page 1 of 15")),
+            big(84.0, 50.0, "Fulton Bank"),
+            line(96.0, (200.0, "Lancaster, PA 17604")),
+            line(108.0, (300.0, "Statement Date: 04/01/21 through 04/30/21")),
+        ]
+        assert read_header(rows).account.bank == "Fulton Bank"
+
+    def test_a_labelled_field_is_never_the_letterhead(self):
+        rows = [big(60.0, 50.0, "Statement Date: 04/01/21 through 04/30/21"),
+                line(72.0, (50.0, "IXONIA BANK"))]
+        assert read_header(rows).account.bank == "IXONIA BANK"
+
+    def test_without_sizes_the_first_plain_line_is_used(self):
+        assert read_header(["GREAT LAKES COMMERCE BANK", "Beginning balance 1.00"]).account.bank \
+            == "GREAT LAKES COMMERCE BANK"
+
+
+class TestAccountMaskGuard:
+    """SPEC §7.15 — `Box` ends in `x`, and `P.O.Box 4887` is not an account number."""
+
+    def test_a_po_box_is_not_an_account(self):
+        reading = read_header(["P.O.Box 4887 Page 1 of 15", "Primary Account: XXXX 1858"])
+        assert reading.account.account_last4 == "1858"
+
+    def test_a_spaced_ocr_mask_still_reads(self):
+        assert read_header(["COMMERCIAL CHECKING Account Xxx X 1858"]).account.account_last4 \
+            == "1858"

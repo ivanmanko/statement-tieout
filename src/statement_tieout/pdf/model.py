@@ -31,6 +31,8 @@ class Page:
     number: int
     words: list[Word] = field(default_factory=list)
     text: str = ""
+    source: str = "text"
+    """Which ingest backend produced this page: `text`, `ocr` or `empty`."""
 
     def lines(self, tolerance: float = LINE_TOLERANCE) -> list[list[Word]]:
         """Words grouped into visual lines, each ordered left to right."""

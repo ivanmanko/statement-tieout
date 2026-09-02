@@ -279,6 +279,25 @@ Everything a developer would otherwise decide silently in code.
    constant and this section mirrors it; extending it requires editing both
    in one commit.
 
+   **Two block layouts.** *Vertical* — label and amount on the same line
+   (`Beginning balance $2,014,882.47`). *Horizontal* — a row of labels above
+   a row of amounts, matched by column:
+
+   ```
+   Prior Statement Balance  Total Deposits/Credits  Total Checks/Debits  Ending Statement Balance
+   $1,908,989.60            $4,351,230.63           $4,384,606.59        $1,875,613.64
+   ```
+
+   A line carrying **two or more labels and no money** is a label row; the
+   next line carrying two or more money tokens is its value row, and each
+   amount is assigned to the nearest label by horizontal midpoint. Both
+   layouts are common; a reader that only knows the vertical one finds no
+   summary at all on a bank that uses the other.
+
+   **Matching ignores whitespace.** `priorstatementbalance` matches
+   `Prior Statement Balance`, because OCR loses spaces and a label split
+   differently is the same label.
+
    **Scope:** the block is searched in the lines *preceding* the period's
    first transaction row, which is where every statement seen so far prints
    it; only if a label is not found there is the rest of the period
@@ -358,12 +377,20 @@ Everything a developer would otherwise decide silently in code.
     structured output enforced server-side by re-validating against the
     `LayoutProfile` schema.
 15. **Account identity** is read from the first page of the period:
-    - **bank** — the first line carrying no money token and no run of four or
-      more digits, i.e. the letterhead. A statement whose letterhead is an
-      image yields `null`, not a guess.
-    - **account_last4** — the last run of exactly four digits on a line
-      containing `account`, or the trailing four digits of a masked token
-      (`****4071`, `xxxx4071`, `x4071`) anywhere on the page.
+    - **bank** — the letterhead, identified as the line with the **largest
+      text** among the first `letterhead_lines = 15` lines of the page,
+      ignoring lines that carry money, a date, or a colon (those are
+      labelled fields, not a letterhead). Text size comes from the word
+      height, which both ingest backends report. Measured on the samples:
+      the letterhead is set at 14 pt against 10 pt for everything around it,
+      and a rule keyed on digits instead rejects any letterhead that carries
+      a postcode. If no line qualifies, `null` — never a guess.
+    - **account_last4** — the trailing four digits of a masked token
+      (`****4071`, `xxxx4071`, `Xxx X 1858`) anywhere on the page, or
+      failing that the last run of exactly four digits on a line containing
+      `account`. The mask must not be preceded by a letter: without that
+      guard `P.O.Box 4887` reads as an account number, because `Box` ends
+      in `x`.
     - **period start/end** — the two dates on a line containing
       `statement period`, `statement date`, `for the period` or
       `period covered`. One date alone fills `end` and leaves `start` null.
