@@ -1,0 +1,23 @@
+{
+  "provenance": {
+    "summary": "read by hand from the printed summary block on page 1",
+    "counts": "counted independently with a throwaway regex script over the page text, before the parser existed — not taken from the parser under test",
+    "transactions_count": "same throwaway script"
+  },
+  "account": {
+    "bank": "GREAT LAKES COMMERCE BANK",
+    "account_last4": "4071",
+    "period": { "start": "2025-01-01", "end": "2025-01-28" }
+  },
+  "summary": {
+    "beginning_balance": 2014882.47,
+    "ending_balance": 2041338.12,
+    "deposits_total": 2180764.90,
+    "deposits_count": 134,
+    "withdrawals_total": 2154309.25,
+    "withdrawals_count": 158
+  },
+  "periods": 1,
+  "transactions_count": 292,
+  "notes": "The tuning file (SPEC §10.1). The statement prints totals but no transaction counts, so deposits_count / withdrawals_count are derived by the extractor and the two count checks report `unavailable`."
+}

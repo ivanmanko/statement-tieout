@@ -1,0 +1,7 @@
+{
+  "provenance": {
+    "summary": "none — all four pages are scanned images with no text layer, so no ground truth could be read without transcription"
+  },
+  "no_ground_truth": true,
+  "notes": "Held out (SPEC §10.1). Recorded so the harness reports what the extractor does with a pure scan rather than quietly skipping it. Expected behavior: zero transactions, every check `unavailable`, warnings naming the scanned pages. Filling this in requires rung 3, which is out of scope for this delivery."
+}
