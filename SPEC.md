@@ -350,8 +350,11 @@ Everything a developer would otherwise decide silently in code.
     3. **Money columns:** the horizontal midpoints of all money tokens on
        candidate rows are sorted and split wherever the gap exceeds
        `column_gap = 20.0` points. A cluster appearing on fewer than
-       `min_column_share = 25%` of candidate rows is discarded as an amount
-       embedded in a description.
+       `min_column_share = 30%` of candidate rows is discarded as an amount
+       embedded in a description. **Known limitation:** a genuine two-column
+       layout whose rows are more lopsided than 70/30 loses its rarer
+       column; the resulting reconciliation failure is the signal to
+       escalate, not a silent wrong answer.
     4. **Balance column:** the rightmost surviving cluster, *if* it behaves
        like a running balance — `b[i] − b[i−1]` equals ± the row's amount on
        a majority of consecutive rows. Otherwise there is no balance column

@@ -8,7 +8,7 @@ than guessing when it cannot. Declining is what makes escalation meaningful.
 from statement_tieout.layout import SideStrategy
 from statement_tieout.layout.heuristic import derive_profile
 
-from .helpers import BALANCE_X, DATE_X, DESC_X, LEFT_X, RIGHT_X, line, page, rows_page
+from .helpers import DATE_X, DESC_X, LEFT_X, RIGHT_X, line, page, rows_page
 
 SIGNED_PAGE = rows_page(
     ("01/01/2025", "CIGNA CLAIMS PAYMENT", "8,164.30", "2,023,046.77"),

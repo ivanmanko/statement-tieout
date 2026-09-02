@@ -16,16 +16,19 @@ from decimal import Decimal
 from ..layout.dates import find_dates, starts_with_date
 from ..money import ZERO, find_money
 from ..schema import Account, DateRange, Summary, Transaction
+from .labels import (
+    BEGINNING_LABELS,
+    DEPOSIT_LABELS,
+    ENDING_LABELS,
+    WITHDRAWAL_LABELS,
+)
 
-#: SPEC §7.5. Longest label first so `deposits and credits` is not eaten by `deposits`.
+#: SPEC §7.5, from the one module that owns the vocabulary.
 LABELS: dict[str, tuple[str, ...]] = {
-    "beginning_balance": ("beginning balance", "previous balance", "opening balance",
-                          "balance forward"),
-    "ending_balance": ("ending balance", "new balance", "closing balance"),
-    "deposits_total": ("deposits and credits", "total deposits", "deposits", "credits",
-                       "additions"),
-    "withdrawals_total": ("withdrawals and debits", "total withdrawals", "withdrawals",
-                          "debits", "subtractions"),
+    "beginning_balance": BEGINNING_LABELS,
+    "ending_balance": ENDING_LABELS,
+    "deposits_total": DEPOSIT_LABELS,
+    "withdrawals_total": WITHDRAWAL_LABELS,
 }
 
 #: Which count field rides along with which total (SPEC §7.5).
