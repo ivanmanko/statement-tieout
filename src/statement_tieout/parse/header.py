@@ -1,9 +1,14 @@
 """Reading the printed header: account identity and the summary block.
 
 The summary is *read*, never computed (ADR-001) — that is what makes
-reconciliation a comparison of two independent things rather than a
-tautology. Anything the page does not print is left `None` here and filled in
-downstream, where it is recorded as derived rather than printed (SPEC §7.8).
+reconciliation a comparison of two independent things rather than a tautology.
+Anything the page does not print is left `None` here and filled in downstream,
+where it is recorded as derived rather than printed (SPEC §7.8).
+
+Two block layouts exist in the wild and both are handled: *vertical*, with the
+label and the amount on one line, and *horizontal*, with a row of labels above
+a row of amounts matched by column. A reader that knows only the first finds
+no summary at all on a bank that uses the second.
 """
 
 from __future__ import annotations
@@ -12,16 +17,13 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
+from statistics import median
 
 from ..layout.dates import find_dates, starts_with_date
-from ..money import ZERO, find_money
+from ..money import ZERO, MoneyToken, find_money
+from ..pdf.model import Word
 from ..schema import Account, DateRange, Summary, Transaction
-from .labels import (
-    BEGINNING_LABELS,
-    DEPOSIT_LABELS,
-    ENDING_LABELS,
-    WITHDRAWAL_LABELS,
-)
+from .labels import BEGINNING_LABELS, DEPOSIT_LABELS, ENDING_LABELS, WITHDRAWAL_LABELS
 
 #: SPEC §7.5, from the one module that owns the vocabulary.
 LABELS: dict[str, tuple[str, ...]] = {
@@ -36,10 +38,32 @@ _COUNT_OF = {"deposits_total": "deposits_count", "withdrawals_total": "withdrawa
 
 PERIOD_LABELS = ("statement period", "statement date", "for the period", "period covered")
 
-_MASKED_ACCOUNT = re.compile(r"[*xX×]{1,}\s?(\d{4})\b")
+LETTERHEAD_LINES = 15
+"""How far down the page a letterhead may be (SPEC §7.15)."""
+
+MIN_LABELS_IN_A_ROW = 2
+"""A horizontal label row carries several labels; one is a stray word."""
+
+# The mask must not follow a letter, or `P.O.Box 4887` reads as an account.
+_MASKED_ACCOUNT = re.compile(r"(?<![A-Za-z])[*xX×][\s*xX×]*(\d{4})(?!\d)")
 _FOUR_DIGITS = re.compile(r"\b(\d{4})\b")
-_LONG_DIGITS = re.compile(r"\d{4,}")
 _BARE_INTEGER = re.compile(r"\b\d{1,3}\b")
+_LONG_DIGITS = re.compile(r"\d{4,}")
+_MONEY_SHAPED = re.compile(r"[-(]?\$?\d[\d,]*\.\d{2}\)?-?")
+
+RawLine = "str | Sequence[Word] | _Line"
+
+
+@dataclass(frozen=True)
+class _Line:
+    """One line of the page, with word positions when the caller has them."""
+
+    text: str
+    words: tuple[Word, ...] = ()
+
+    @property
+    def money(self) -> list[MoneyToken]:
+        return find_money(self.text)
 
 
 @dataclass
@@ -68,13 +92,19 @@ class HeaderReading:
 
 
 def read_header(
-    header_lines: Sequence[str],
-    body_lines: Sequence[str] = (),
+    header_lines: Sequence[RawLine],
+    body_lines: Sequence[RawLine] = (),
 ) -> HeaderReading:
     """Read identity and totals, preferring the lines above the first row (SPEC §7.5)."""
-    reading = HeaderReading(account=_read_account(header_lines))
+    header, body = _as_lines(header_lines), _as_lines(body_lines)
+    reading = HeaderReading(account=_read_account(header))
+
+    horizontal = _horizontal_block(header) or _horizontal_block(body)
     for field, labels in LABELS.items():
-        found = _find_labelled(header_lines, labels) or _find_labelled(body_lines, labels)
+        if field in horizontal:
+            setattr(reading, field, horizontal[field])
+            continue
+        found = _find_labelled(header, labels) or _find_labelled(body, labels)
         if found is None:
             continue
         amount, count = found
@@ -84,36 +114,142 @@ def read_header(
     return reading
 
 
+def _as_lines(raw: Sequence[RawLine]) -> list[_Line]:
+    lines = []
+    for item in raw:
+        if isinstance(item, _Line):
+            lines.append(item)
+        elif isinstance(item, str):
+            lines.append(_Line(text=item))
+        else:
+            words = tuple(item)
+            lines.append(_Line(text=" ".join(w.text for w in words), words=words))
+    return lines
+
+
+def _squash(text: str) -> str:
+    """Whitespace-insensitive form: OCR loses spaces, and the label is the same."""
+    return "".join(text.split()).casefold()
+
+
+def _labels_on(line: _Line) -> dict[str, str]:
+    """Which summary fields this line names, and with which label."""
+    squashed = _squash(line.text)
+    found = {}
+    for field, labels in LABELS.items():
+        for label in labels:
+            if _squash(label) in squashed:
+                found[field] = label
+                break
+    return found
+
+
+# --------------------------------------------------------------------------- vertical
+
+
 def _find_labelled(
-    lines: Sequence[str], labels: Sequence[str]
+    lines: Sequence[_Line], labels: Sequence[str]
 ) -> tuple[Decimal, int | None] | None:
     """The amount and optional count on the first line carrying one of these labels."""
     for line in lines:
-        if starts_with_date(line):
+        if starts_with_date(line.text):
             continue  # a transaction row, not a summary line
-        normalized = " ".join(line.split()).casefold()
-        if not any(label in normalized for label in labels):
+        squashed = _squash(line.text)
+        if not any(_squash(label) in squashed for label in labels):
             continue
-        tokens = find_money(line)
+        tokens = line.money
         if not tokens:
             continue
-        return tokens[-1].value, _count_on(line, tokens)
+        return tokens[-1].value, _count_on(line.text, tokens)
     return None
 
 
-def _count_on(line: str, money: Sequence[object]) -> int | None:
+def _count_on(text: str, money: Sequence[MoneyToken]) -> int | None:
     """A count is read only from an unambiguous line: one amount, one bare integer."""
     if len(money) != 1:
         return None
-    without_money = _MONEY_SHAPED.sub(" ", line)
-    integers = _BARE_INTEGER.findall(without_money)
+    integers = _BARE_INTEGER.findall(_MONEY_SHAPED.sub(" ", text))
     return int(integers[0]) if len(integers) == 1 else None
 
 
-_MONEY_SHAPED = re.compile(r"[-(]?\$?\d[\d,]*\.\d{2}\)?-?")
+# ------------------------------------------------------------------------- horizontal
 
 
-def _read_account(lines: Sequence[str]) -> Account:
+def _horizontal_block(lines: Sequence[_Line]) -> dict[str, Decimal]:
+    """A row of labels over a row of amounts, matched by horizontal midpoint."""
+    for index, line in enumerate(lines):
+        if line.money or not line.words or starts_with_date(line.text):
+            continue
+        named = _labels_on(line)
+        if len(named) < MIN_LABELS_IN_A_ROW:
+            continue
+        values = _next_value_row(lines, index)
+        if values is None:
+            continue
+        spans = {}
+        for field in named:
+            # Try every label for the field: the one that matched the whole line
+            # as a substring may not be the one the words actually spell.
+            for label in LABELS[field]:
+                span = _span_of(label, line.words)
+                if span is not None:
+                    spans[field] = span
+                    break
+        if len(spans) < MIN_LABELS_IN_A_ROW:
+            continue
+        return _assign_by_column(spans, values)
+    return {}
+
+
+def _next_value_row(lines: Sequence[_Line], index: int) -> list[Word] | None:
+    """The following line carrying several amounts is the label row's values."""
+    for line in lines[index + 1 : index + 3]:
+        amounts = [word for word in line.words if find_money(word.text)]
+        if len(amounts) >= MIN_LABELS_IN_A_ROW:
+            return amounts
+    return None
+
+
+def _span_of(label: str, words: Sequence[Word]) -> tuple[float, float] | None:
+    """Where this label sits horizontally, given words that may be split anywhere."""
+    target = _squash(label)
+    for start in range(len(words)):
+        accumulated = ""
+        for end in range(start, min(start + 8, len(words))):
+            accumulated += _squash(words[end].text)
+            if accumulated == target:
+                return words[start].x0, words[end].x1
+            if not target.startswith(accumulated):
+                break
+    return None
+
+
+def _assign_by_column(
+    spans: dict[str, tuple[float, float]], values: list[Word]
+) -> dict[str, Decimal]:
+    """Give each label the nearest amount, nearest pair first, no amount reused."""
+    centers = {field: (span[0] + span[1]) / 2 for field, span in spans.items()}
+    pairs = sorted(
+        (abs((word.x0 + word.x1) / 2 - center), field, index)
+        for field, center in centers.items()
+        for index, word in enumerate(values)
+    )
+    assigned: dict[str, Decimal] = {}
+    used: set[int] = set()
+    for _, field, index in pairs:
+        if field in assigned or index in used:
+            continue
+        amount = find_money(values[index].text)
+        if amount:
+            assigned[field] = amount[-1].value
+            used.add(index)
+    return assigned
+
+
+# --------------------------------------------------------------------------- identity
+
+
+def _read_account(lines: Sequence[_Line]) -> Account:
     return Account(
         bank=_read_bank(lines),
         account_last4=read_last4(lines),
@@ -121,43 +257,56 @@ def _read_account(lines: Sequence[str]) -> Account:
     )
 
 
-def _read_bank(lines: Sequence[str]) -> str | None:
-    """The letterhead: the first line with no money and no long digit run (SPEC §7.15)."""
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or not any(char.isalpha() for char in stripped):
-            continue
-        if find_money(stripped) or _LONG_DIGITS.search(stripped):
-            continue
-        return stripped
-    return None
+def _read_bank(lines: Sequence[_Line]) -> str | None:
+    """The letterhead: the largest text that is not a labelled field (SPEC §7.15)."""
+    candidates = [line for line in lines[:LETTERHEAD_LINES] if _could_be_a_letterhead(line)]
+    if not candidates:
+        return None
+    sized = [line for line in candidates if any(word.height for word in line.words)]
+    if sized:
+        return max(sized, key=lambda line: median(w.height for w in line.words)).text.strip()
+    # No text sizes to compare (a caller passing plain strings): fall back to the
+    # older rule, which prefers a line carrying no long run of digits.
+    plain = [line for line in candidates if not _LONG_DIGITS.search(line.text)]
+    return (plain or candidates)[0].text.strip()
 
 
-def read_last4(lines: Sequence[str]) -> str | None:
+def _could_be_a_letterhead(line: _Line) -> bool:
+    text = line.text.strip()
+    if not text or not any(char.isalpha() for char in text):
+        return False
+    return not (":" in text or find_money(text) or find_dates(text))
+
+
+def read_last4(lines: Sequence[RawLine]) -> str | None:
     """The masked or labelled account tail (SPEC §7.15). Also a period anchor."""
-    for line in lines:
-        masked = _MASKED_ACCOUNT.search(line)
+    resolved = _as_lines(lines)
+    for line in resolved:
+        masked = _MASKED_ACCOUNT.search(line.text)
         if masked:
             return masked.group(1)
-    for line in lines:
-        if "account" in line.casefold():
-            digits = _FOUR_DIGITS.findall(line)
+    for line in resolved:
+        if "account" in line.text.casefold():
+            digits = _FOUR_DIGITS.findall(line.text)
             if digits:
                 return digits[-1]
     return None
 
 
-def read_period(lines: Sequence[str]) -> DateRange:
+def read_period(lines: Sequence[RawLine]) -> DateRange:
     """The stated statement period (SPEC §7.15). Also a period anchor."""
-    for line in lines:
-        if not any(label in line.casefold() for label in PERIOD_LABELS):
+    for line in _as_lines(lines):
+        if not any(label in line.text.casefold() for label in PERIOD_LABELS):
             continue
-        dates = find_dates(line)
+        dates = find_dates(line.text)
         if len(dates) >= 2:
             return DateRange(start=dates[0], end=dates[-1])
         if dates:
             return DateRange(end=dates[0])
     return DateRange()
+
+
+# ---------------------------------------------------------------------------- assembly
 
 
 def build_summary(reading: HeaderReading, transactions: Sequence[Transaction]) -> Summary:

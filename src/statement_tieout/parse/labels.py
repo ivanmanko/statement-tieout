@@ -6,9 +6,11 @@ This module is the one place the vocabulary lives; SPEC §7.5 mirrors it, and
 extending one requires editing both in the same commit.
 """
 
-BEGINNING_LABELS = ("beginning balance", "previous balance", "opening balance",
-                    "balance forward")
-ENDING_LABELS = ("ending balance", "new balance", "closing balance")
-DEPOSIT_LABELS = ("deposits and credits", "total deposits", "deposits", "credits", "additions")
-WITHDRAWAL_LABELS = ("withdrawals and debits", "total withdrawals", "withdrawals", "debits",
-                     "subtractions")
+BEGINNING_LABELS = ("prior statement balance", "beginning balance", "previous balance",
+                    "opening balance", "balance forward", "prior balance")
+ENDING_LABELS = ("ending statement balance", "ending balance", "new balance",
+                 "closing balance")
+DEPOSIT_LABELS = ("total deposits/credits", "deposits and credits", "deposits/credits",
+                  "total deposits", "deposits", "credits", "additions")
+WITHDRAWAL_LABELS = ("total checks/debits", "withdrawals and debits", "checks/debits",
+                     "total withdrawals", "withdrawals", "debits", "subtractions")

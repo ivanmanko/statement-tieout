@@ -79,3 +79,11 @@ def big(top: float, x0: float, text: str, height: float = 14.0) -> list[Word]:
         words.append(Word(text=token, x0=x, x1=x + len(token) * CHAR_WIDTH, top=top, height=height))
         x += len(token) * CHAR_WIDTH + 4.0
     return words
+
+
+def mixed(top: float, cells: list[tuple[float, str, float]]) -> list[Word]:
+    """A line whose words are set in different sizes — a logo beside an address."""
+    return [
+        Word(text=text, x0=x0, x1=x0 + len(text) * CHAR_WIDTH, top=top, height=height)
+        for x0, text, height in cells
+    ]

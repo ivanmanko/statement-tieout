@@ -41,6 +41,7 @@ class Segment:
     x1: float
     top: float
     score: float
+    bottom: float = 0.0
 
 
 def words_from_segments(segments: list[Segment], scale: float) -> list[Word]:
@@ -62,6 +63,7 @@ def words_from_segments(segments: list[Segment], scale: float) -> list[Word]:
                     x0=cursor / scale,
                     x1=(cursor + width) / scale,
                     top=segment.top / scale,
+                    height=max(segment.bottom - segment.top, 0.0) / scale,
                 )
             )
             cursor += width
@@ -82,6 +84,7 @@ def read_page(page, scale: float = OCR_SCALE) -> list[Word]:
             x0=min(point[0] for point in box),
             x1=max(point[0] for point in box),
             top=min(point[1] for point in box),
+            bottom=max(point[1] for point in box),
             score=float(score),
         )
         for box, text, score in (raw or [])

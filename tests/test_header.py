@@ -11,7 +11,7 @@ from decimal import Decimal
 from statement_tieout.parse.header import build_summary, read_header
 from statement_tieout.schema import Transaction
 
-from .helpers import big, line
+from .helpers import big, line, mixed
 
 GREAT_LAKES = [
     "GREAT LAKES COMMERCE BANK",
@@ -254,3 +254,32 @@ class TestAccountMaskGuard:
     def test_a_spaced_ocr_mask_still_reads(self):
         assert read_header(["COMMERCIAL CHECKING Account Xxx X 1858"]).account.account_last4 \
             == "1858"
+
+
+class TestLetterheadIsWordsNotLines:
+    """SPEC §7.15 — a logo is set larger than the address printed beside it."""
+
+    def test_only_the_large_words_of_the_line_are_the_bank(self):
+        rows = [
+            mixed(60.0, [(50.0, "Fulton", 18.4), (140.0, "Bank", 18.4),
+                         (205.0, "Lancaster,", 10.4), (250.0, "PA", 10.4),
+                         (270.0, "17604", 10.4)]),
+            line(72.0, (50.0, "fultonbank.com")),
+        ]
+        assert read_header(rows).account.bank == "Fulton Bank"
+
+    def test_a_uniformly_set_letterhead_is_kept_whole(self):
+        rows = [big(60.0, 50.0, "GREAT LAKES COMMERCE BANK"),
+                line(72.0, (50.0, "Business Checking Statement"))]
+        assert read_header(rows).account.bank == "GREAT LAKES COMMERCE BANK"
+
+
+class TestAccountMaskNeedsTwoCharactersOrNoGap:
+    """SPEC §7.15 — OCR of `P.O.Box 4887` yields `P.O.B 0 x 4887` on some pages."""
+
+    def test_a_lone_masked_character_with_a_gap_is_not_a_mask(self):
+        reading = read_header(["P.O.B 0 x 4887 Page 3 of 15", "Primary Account: XXXX 1858"])
+        assert reading.account.account_last4 == "1858"
+
+    def test_a_single_mask_touching_the_digits_still_reads(self):
+        assert read_header(["Checking x4071"]).account.account_last4 == "4071"

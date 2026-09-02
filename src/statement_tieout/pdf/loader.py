@@ -43,7 +43,13 @@ def _from_text_layer(number: int, source) -> Page:
     if len(text.strip()) < MIN_CHARS_PER_TEXT_PAGE:
         return Page(number=number, words=[], text="", source="empty")
     words = [
-        Word(text=w["text"], x0=float(w["x0"]), x1=float(w["x1"]), top=float(w["top"]))
+        Word(
+            text=w["text"],
+            x0=float(w["x0"]),
+            x1=float(w["x1"]),
+            top=float(w["top"]),
+            height=float(w["bottom"]) - float(w["top"]),
+        )
         for w in source.extract_words()
     ]
     return Page(number=number, words=words, text=text, source="text")

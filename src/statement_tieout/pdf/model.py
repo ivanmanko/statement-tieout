@@ -19,6 +19,8 @@ class Word:
     x0: float
     x1: float
     top: float
+    height: float = 0.0
+    """Text size. Both ingest backends report it; 0.0 means unknown."""
 
     @property
     def center(self) -> float:

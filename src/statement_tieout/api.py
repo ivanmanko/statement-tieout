@@ -19,9 +19,9 @@ from .layout.heuristic import derive_profile
 from .money import find_money, format_money
 from .parse.header import HeaderReading, build_summary, read_header
 from .parse.rows import ParsedRows, parse_rows
-from .parse.segment import page_lines, segment
+from .parse.segment import segment
 from .pdf.loader import is_scanned, load_pages
-from .pdf.model import Page
+from .pdf.model import Page, Word
 from .reconcile import diagnose, reconcile
 from .schema import Extraction, ExtractResult, PeriodResult, Reconciliation
 
@@ -72,7 +72,7 @@ def extract_result(pdf_path: str) -> ExtractResult:
 
 def _period(pages: list[Page]) -> tuple[PeriodResult, list[str]]:
     """Parse and reconcile one statement period."""
-    lines = [line for page in pages for line in page_lines(page)]
+    lines = [line for page in pages for line in page.lines()]
     header_lines, body_lines = _split_at_first_row(lines)
     reading = read_header(header_lines, body_lines)
 
@@ -123,10 +123,11 @@ def _explain(
     return result.model_copy(update={"diagnosis": finding.kind, "detail": finding.detail})
 
 
-def _split_at_first_row(lines: list[str]) -> tuple[list[str], list[str]]:
+def _split_at_first_row(lines: list[list[Word]]) -> tuple[list[list[Word]], list[list[Word]]]:
     """SPEC §7.5: the summary block is searched above the first transaction row."""
     for index, line in enumerate(lines):
-        if starts_with_date(line) and find_money(line):
+        text = " ".join(word.text for word in line)
+        if starts_with_date(text) and find_money(text):
             return lines[:index], lines[index:]
     return lines, []
 
