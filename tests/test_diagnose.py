@@ -149,9 +149,10 @@ class TestCountsUnavailable:
         assert result.confident is False
 
     def test_matching_a_row_amount_is_reported_as_ambiguous(self):
+        """No parsed row is half the residual, so the side-flip signature cannot fire."""
         result = diagnose(
             summary(printed=NO_COUNTS),
-            rows(("d", "100.00"), ("d", "200.00"), ("d", "200.00"), ("w", "50.00")),
+            rows(("d", "300.00"), ("d", "200.00"), ("w", "50.00")),
         )
         assert result.kind == "amount_matches_row"
         assert result.amount == Decimal("200.00")
@@ -160,11 +161,11 @@ class TestCountsUnavailable:
     def test_amount_only_on_the_page_suggests_a_dropped_row(self):
         result = diagnose(
             summary(printed=NO_COUNTS),
-            rows(("d", "100.00"), ("w", "50.00")),
-            page_text={7: "01/09 AETNA REMITTANCE ACH 200.00 1,876.00"},
+            rows(("d", "100.00"), ("w", "300.00")),
+            page_text={7: "01/09 AETNA REMITTANCE ACH 450.00 1,876.00"},
         )
         assert result.kind == "dropped_row"
-        assert result.amount == Decimal("200.00")
+        assert result.amount == Decimal("450.00")
         assert result.page == 7
         assert result.confident is False
 

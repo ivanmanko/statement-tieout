@@ -1,5 +1,6 @@
 """Reconciliation: the free, deterministic oracle this project is built around."""
 
+from .diagnose import Diagnosis, diagnose
 from .engine import (
     BALANCE_EQUATION,
     CHECKS,
@@ -19,5 +20,7 @@ __all__ = [
     "PRINTED_BLOCK_CLOSES",
     "WITHDRAWALS_COUNT",
     "WITHDRAWALS_TOTAL",
+    "Diagnosis",
+    "diagnose",
     "reconcile",
 ]
