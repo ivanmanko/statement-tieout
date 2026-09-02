@@ -11,11 +11,12 @@ from decimal import Decimal
 import pytest
 
 from statement_tieout.layout import Column, LayoutProfile, SideStrategy
-from statement_tieout.pdf.model import Page, Word
 from statement_tieout.parse.rows import parse_rows
+from statement_tieout.pdf.model import Page, Word
 from statement_tieout.schema import DateRange
 
 DATE_X, DESC_X, LEFT_X, RIGHT_X, BALANCE_X = 30.0, 90.0, 330.0, 410.0, 490.0
+BALANCE_COLUMN = Column(x0=480.0, x1=560.0)
 
 
 def word(text: str, x0: float, top: float) -> Word:
@@ -41,7 +42,7 @@ def page(*lines: list[Word], number: int = 1) -> Page:
 def profile(
     strategy: SideStrategy = SideStrategy.SIGNED,
     amount_columns: tuple[Column, ...] = (Column(x0=320.0, x1=400.0),),
-    balance_column: Column | None = Column(x0=480.0, x1=560.0),
+    balance_column: Column | None = BALANCE_COLUMN,
     deposit_sections: tuple[str, ...] = (),
     withdrawal_sections: tuple[str, ...] = (),
 ) -> LayoutProfile:
@@ -206,7 +207,7 @@ class TestDates:
         ("text", "fmt", "expected"),
         [("01/28/2025", "%m/%d/%Y", date(2025, 1, 28)),
          ("28/01/2025", "%d/%m/%Y", date(2025, 1, 28)),
-         ("Jan 28, 2025", "%b %d, %Y", date(2025, 1, 28))],
+         ("2025-01-28", "%Y-%m-%d", date(2025, 1, 28))],
     )
     def test_declared_formats_are_honored(self, text, fmt, expected):
         prof = profile()
@@ -215,6 +216,17 @@ class TestDates:
                       (BALANCE_X, "1,010.00")))
         (txn,) = parse_rows([p], prof).transactions
         assert txn.date == expected
+
+    def test_multi_word_date_is_joined(self):
+        """pdfplumber splits on whitespace, so `Jan 28, 2025` arrives as three words."""
+        prof = profile()
+        prof.date_column = Column(x0=20.0, x1=125.0)
+        prof.date_formats = ["%b %d, %Y"]
+        p = page(line(100.0, (DATE_X, "Jan 28, 2025"), (140.0, "X"), (LEFT_X, "10.00"),
+                      (BALANCE_X, "1,010.00")))
+        (txn,) = parse_rows([p], prof).transactions
+        assert txn.date == date(2025, 1, 28)
+        assert txn.description == "X"
 
     def test_yearless_format_takes_the_year_from_the_period(self):
         prof = profile()
