@@ -227,3 +227,21 @@ class TestTableHeadersAreNotSectionHeadings:
         profile = derive_profile([page(header, *rows)])
         assert profile.deposit_sections == []
         assert profile.withdrawal_sections == []
+
+
+class TestSectionVocabularyFromRealStatements:
+    """SPEC §7.5 — `CHECKS`, `OTHER DEBITS` and `CREDITS` head sections on a real file."""
+
+    def test_checks_and_credits_are_recognised_as_sides(self):
+        p = page(
+            line(90.0, (DESC_X, "CHECKS")),
+            *[line(100.0 + i * 12.0, (DATE_X, f"01/0{i + 1}"), (DESC_X, "CHECK"),
+                   (LEFT_X, f"{100 + i}.00")) for i in range(2)],
+            line(140.0, (DESC_X, "CREDITS")),
+            *[line(152.0 + i * 12.0, (DATE_X, f"01/1{i + 1}"), (DESC_X, "TRANSFER"),
+                   (LEFT_X, f"{200 + i}.00")) for i in range(2)],
+        )
+        profile = derive_profile([p])
+        assert profile.side_strategy is SideStrategy.SECTIONS
+        assert profile.withdrawal_sections == ["CHECKS"]
+        assert profile.deposit_sections == ["CREDITS"]

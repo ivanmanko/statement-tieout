@@ -404,6 +404,12 @@ Everything a developer would otherwise decide silently in code.
     - **period start/end** — the two dates on a line containing
       `statement period`, `statement date`, `for the period` or
       `period covered`. One date alone fills `end` and leaves `start` null.
+
+      Core-banking statements often state the cycle as a *pair* of lines
+      instead: `DECEMBER 31, 2024: LAST STATEMENT` above `JANUARY 31, 2025:
+      THIS STATEMENT`. A line containing `last statement` supplies the
+      start, one containing `this statement` supplies the end, and either
+      may appear without the other.
 16. **Provider is an installation parameter.** `LLM_PROVIDER` selects
     `anthropic` (default) / `bedrock` / `vertex` / `foundry`; all four expose
     the same `messages.create`. No code path depends on which is chosen.

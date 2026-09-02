@@ -1,0 +1,20 @@
+{
+  "provenance": {
+    "summary": "read by eye from a rendering of page 1 while the file was still unparseable — before the horizontal-summary reader existed, so it is independent of the code under test",
+    "account": "same rendering",
+    "counts": "the statement prints no transaction counts"
+  },
+  "account": {
+    "bank": "Fulton Bank",
+    "account_last4": "1858",
+    "period": { "start": "2021-04-01", "end": "2021-04-30" }
+  },
+  "summary": {
+    "beginning_balance": 1908989.60,
+    "ending_balance": 1875613.64,
+    "deposits_total": 4351230.63,
+    "withdrawals_total": 4384606.59
+  },
+  "periods": 1,
+  "notes": "Held out from tuning (SPEC §10.1). Fifteen scanned pages with no text layer, read by the OCR ingest backend. Prints its summary as a horizontal label row over a value row, sets its logo at 18.4pt beside a 10.4pt address, and OCRs its P.O. box as 'P.O.B 0 x 4887'. No transaction count is recorded because the statement prints none and counting 284 rows by eye would not be independent evidence."
+}

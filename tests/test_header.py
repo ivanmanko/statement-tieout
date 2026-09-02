@@ -283,3 +283,27 @@ class TestAccountMaskNeedsTwoCharactersOrNoGap:
 
     def test_a_single_mask_touching_the_digits_still_reads(self):
         assert read_header(["Checking x4071"]).account.account_last4 == "4071"
+
+
+class TestStatementCyclePair:
+    """SPEC §7.15 — core-banking statements state the cycle as two lines."""
+
+    def test_last_and_this_statement_bracket_the_period(self):
+        period = read_header([
+            "DECEMBER 31, 2024: LAST STATEMENT",
+            "JANUARY 31, 2025: THIS STATEMENT",
+        ]).account.period
+        assert period.start == date(2024, 12, 31)
+        assert period.end == date(2025, 1, 31)
+
+    def test_this_statement_alone_fills_only_the_end(self):
+        period = read_header(["JANUARY 31, 2025: THIS STATEMENT"]).account.period
+        assert period.start is None
+        assert period.end == date(2025, 1, 31)
+
+    def test_an_explicit_period_line_still_wins(self):
+        period = read_header([
+            "Statement period 04/01/2025 - 04/30/2025",
+            "JANUARY 31, 2025: THIS STATEMENT",
+        ]).account.period
+        assert (period.start, period.end) == (date(2025, 4, 1), date(2025, 4, 30))
