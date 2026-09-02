@@ -307,3 +307,26 @@ class TestStatementCyclePair:
             "JANUARY 31, 2025: THIS STATEMENT",
         ]).account.period
         assert (period.start, period.end) == (date(2025, 4, 1), date(2025, 4, 30))
+
+
+class TestAccountNumberWithoutAMask:
+    """SPEC §7.15 — `ACCOUNT NUMBER 0011016426` means the account ends 6426."""
+
+    def test_last_four_of_a_long_run(self):
+        assert read_header(["ACCOUNTNUMBER 0011016426"]).account.account_last4 == "6426"
+
+    def test_a_masked_token_still_wins(self):
+        reading = read_header(["ACCOUNT NUMBER 0011016426", "Checking ****4071"])
+        assert reading.account.account_last4 == "4071"
+
+
+class TestCommaLessMonthName:
+    """OCR drops the comma: `JANUARY 31 2025` is still a date."""
+
+    def test_month_day_year_without_a_comma(self):
+        period = read_header(["JANUARY 31 2025: THIS STATEMENT"]).account.period
+        assert period.end == date(2025, 1, 31)
+
+    def test_a_run_together_cycle_label_still_matches(self):
+        period = read_header(["DECEMBER 31 2024 LASTSTATEMENT"]).account.period
+        assert period.start == date(2024, 12, 31)

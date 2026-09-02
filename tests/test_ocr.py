@@ -70,3 +70,35 @@ class TestFiltering:
     def test_words_come_back_in_reading_order(self):
         segments = [segment("SECOND", 100.0, 160.0, top=200.0), segment("FIRST", 0.0, 50.0)]
         assert [w.text for w in words_from_segments(segments, scale=1.0)] == ["FIRST", "SECOND"]
+
+
+class TestSeparatorRepair:
+    """SPEC §7.2 — the one OCR repair: a thousands separator misread as a slash.
+
+    `32/537.69` is what the engine returns for `32,537.69` on a real page, at
+    every render scale tried. Nothing else in a statement takes that shape.
+    """
+
+    def test_a_slash_between_digit_groups_becomes_a_comma(self):
+        (word,) = words_from_segments([segment("32/537.69", 0.0, 90.0)], scale=1.0)
+        assert word.text == "32,537.69"
+
+    def test_a_pipe_is_repaired_too(self):
+        (word,) = words_from_segments([segment("1|234|567.89", 0.0, 120.0)], scale=1.0)
+        assert word.text == "1,234,567.89"
+
+    def test_a_date_is_left_alone(self):
+        (word,) = words_from_segments([segment("04/01/2025", 0.0, 60.0)], scale=1.0)
+        assert word.text == "04/01/2025"
+
+    def test_a_fraction_without_a_money_tail_is_left_alone(self):
+        (word,) = words_from_segments([segment("1/234", 0.0, 40.0)], scale=1.0)
+        assert word.text == "1/234"
+
+
+class TestColonSplitting:
+    """A colon is a field separator; OCR glues the label to it."""
+
+    def test_a_colon_splits_the_segment(self):
+        words = words_from_segments([segment("2024:LASTSTATEMENT", 0.0, 180.0)], scale=1.0)
+        assert [w.text for w in words] == ["2024", "LASTSTATEMENT"]

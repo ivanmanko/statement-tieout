@@ -246,6 +246,14 @@ Everything a developer would otherwise decide silently in code.
    contain no letters and no case transitions. A segment whose confidence
    is below `min_ocr_confidence = 0.5` is dropped and counted in a warning.
 
+   **One OCR repair is applied, and only one.** A token shaped
+   `\d{1,3}([/|]\d{3})+\.\d{2}` — `32/537.69` — has its separators
+   rewritten to commas. Nothing else in a statement takes that shape: a date
+   has no `.dd` tail and no three-digit groups, so the rewrite cannot turn
+   something else into money. It is applied because the misread is stable —
+   the same token reads the same way at render scales 3, 4 and 5 — and it is
+   safe because a wrong repair still has to pass reconciliation.
+
    **Consequence, recorded rather than hidden:** an all-capitals
    description with its spaces lost stays one token, so descriptions from a
    scan are less faithful than descriptions from a text layer. Amounts,
@@ -397,8 +405,9 @@ Everything a developer would otherwise decide silently in code.
       is used. If nothing qualifies, `null` — never a guess.
     - **account_last4** — the trailing four digits of a masked token
       (`****4071`, `xxxx4071`, `Xxx X 1858`) anywhere on the page, or
-      failing that the last run of exactly four digits on a line containing
-      `account`. A mask is **two or more** mask characters, or a single one
+      failing that, on a line containing `account`, the last four digits of
+      its longest run of digits — `ACCOUNT NUMBER 0011016426` gives `6426`,
+      which is what "last four" means. A mask is **two or more** mask characters, or a single one
       touching the digits (`x4071`); it may never follow a letter. Both
       guards are needed and both come from real pages: `P.O.Box 4887` has a
       mask character because `Box` ends in `x`, and OCR of the same line on
