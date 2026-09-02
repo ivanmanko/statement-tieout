@@ -1,0 +1,293 @@
+# SPEC — Bank Statement Extraction
+
+Behavior specification, written **before implementation**. This document is the
+contract the eval harness asserts against. Every heuristic, threshold and
+assumption the extractor relies on is declared in §7 — if observed behavior
+deviates from this spec, either the code or this document has a bug, and the
+fix is explicit. There is no hidden hardcoded behavior, and in particular
+**no rule keyed to a specific bank or a specific sample file** (§7.1).
+
+## 1. Purpose and scope
+
+Extract, from one bank-statement PDF, the account identity, the printed
+period totals, and every transaction — and **report whether the result
+reconciles**, per period, with the residual when it does not.
+
+**In scope:** `extract(pdf_path: str) -> dict`; a CLI around it; multi-period
+statements (several statements concatenated in one file); a reconciliation
+report; an eval harness.
+
+**Out of scope** (cut consciously, recorded in README): HTTP API and UI,
+transaction categorization, description normalization, batch directory
+processing, persistence, non-PDF inputs.
+
+## 2. Input
+
+An arbitrary US-style bank statement PDF. Two structural cases, distinguished
+at runtime (§7.2), never by filename:
+
+- **text-layer PDF** — characters and their coordinates are recoverable;
+- **scan** — no text layer; pixels only.
+
+The extractor must not assume a known bank, a known template, or a page count.
+
+## 3. Output contract
+
+The Pydantic model `ExtractResult` in `schema.py` is the single source of
+truth for this shape. Nothing else may define or duplicate these fields.
+
+```jsonc
+{
+  "account": { "bank": "string|null", "account_last4": "string|null",
+               "period": { "start": "YYYY-MM-DD|null", "end": "YYYY-MM-DD|null" } },
+  "summary": { "beginning_balance": 0.00, "ending_balance": 0.00,
+               "deposits_total": 0.00, "deposits_count": 0,
+               "withdrawals_total": 0.00, "withdrawals_count": 0 },
+  "transactions": [ { "date": "YYYY-MM-DD", "description": "string",
+                      "deposit": 0.00, "withdrawal": null } ],
+  "periods": [ { "account": {...}, "summary": {...},
+                 "transactions": [...], "reconciliation": {...} } ],
+  "reconciliation": {...},
+  "extraction": { "path": "deterministic|llm_profile|vision",
+                  "llm_calls": 0, "cost_usd": 0.0, "latency_s": 0.0,
+                  "warnings": ["string"] }
+}
+```
+
+**Invariants** (asserted by the eval harness on every result):
+
+1. Exactly one of `deposit` / `withdrawal` is non-null on every transaction,
+   and the non-null one is `> 0`. Sign lives in the field choice, never in
+   the value.
+2. `len(periods) >= 1`. With exactly one period, top-level
+   `account` / `summary` / `transactions` **are** that period's, so the
+   assignment's single-period example holds unchanged.
+3. With several periods, top-level `summary` is the aggregate:
+   `beginning_balance` of the first period, `ending_balance` of the last,
+   totals and counts summed; `transactions` is the concatenation in document
+   order; `account.period` spans first start to last end. Top-level
+   `reconciliation.reconciled` is the AND over periods.
+4. `summary.deposits_count == len([t for t in transactions if t.deposit])`
+   and likewise for withdrawals — **within a period**. This is check D/E
+   (§5) and it is an assertion, not a coincidence: when the statement prints
+   counts they must agree, and when it does not (§7.8) the field is derived
+   from the transactions and therefore holds by construction.
+5. Every `date` lies within `[period.start, period.end]`, or the transaction
+   carries a warning (§7.11).
+6. Money is serialized with exactly 2 decimal places.
+
+`null` in any field means **unknown**, never zero and never "matches
+anything".
+
+## 4. Extraction pipeline (normative)
+
+Stages run in order. The pipeline is an **escalation ladder**: each rung
+produces a candidate result, the same free verifier (§5) accepts or rejects
+it, and we climb only on rejection.
+
+1. **Ingest.** Open the PDF, extract words with coordinates per page.
+   Classify each page as text-bearing or scanned (§7.2).
+2. **Period segmentation.** Split pages into periods using the anchors in
+   §7.3, *before* any row parsing. A file with no anchor is one period.
+3. **Rung 0 — heuristic layout profile.** Derive a `LayoutProfile` (§7.4)
+   from word coordinates alone: no model, no network, $0.
+4. **Rung 1 — cached profile.** If this template fingerprint (§7.7) was seen
+   before, load its stored profile instead of deriving one. Still $0.
+5. **Parse.** Read the printed summary block (§7.5) and parse transaction
+   rows deterministically under the profile (§7.6). No model in this stage,
+   on any rung.
+6. **Reconcile** (§5). If the period reconciles, stop — this is the answer.
+7. **Rung 2 — LLM layout profile.** On failure, send **1–2 sample pages**
+   (never the whole table, §7.13) to the model and ask for a `LayoutProfile`
+   under a strict schema. Re-parse, re-reconcile. At most
+   `max_profile_attempts` (§7.14) attempts, each fed the previous residual.
+8. **Rung 3 — vision transcription** (scanned pages only): transcribe
+   **one page at a time**, each page verified locally (§7.13).
+9. **Rung 4 — agentic repair** (bounded): out of scope for this delivery;
+   the interface exists and the README says so.
+10. **Assembly.** Emit the result plus one structured JSON log line (§8).
+    A period that never reconciled is still returned, with its residual and
+    diagnosis — **a failure is reported, never hidden or silently repaired.**
+
+## 5. Reconciliation (normative)
+
+Two independently obtained views of the same period — the **printed summary
+block** and the **parsed transactions** — are compared. Five checks:
+
+| id | check |
+|---|---|
+| A | `beginning + deposits_total − withdrawals_total == ending` (printed block, internally) |
+| B | `Σ parsed deposits == deposits_total` (printed) |
+| C | `Σ parsed withdrawals == withdrawals_total` (printed) |
+| D | `count parsed deposits == deposits_count` (printed) |
+| E | `count parsed withdrawals == withdrawals_count` (printed) |
+
+Each check is **tri-state**: `ok`, `fail`, or `unavailable`. `unavailable`
+means the statement did not print the input the check needs (§7.8) — it is
+never reported as `ok`. A period is `reconciled` when no check is `fail` and
+at least A or (B and C) is `ok`; the set of checks that carried it is
+reported, so "reconciled" can never mean "we had nothing to check".
+
+**Tolerance is exactly zero.** All money is `Decimal`; a one-cent residual is
+a failure, not a rounding artifact (§7.9).
+
+**Residual** = `beginning + Σparsed_deposits − Σparsed_withdrawals − ending`.
+
+### 5.1 Residual diagnosis
+
+The residual is an address, not just a verdict. Declared signatures, applied
+in order; the first match wins:
+
+| signature | diagnosis |
+|---|---|
+| a parsed row amount equals `abs(residual)` and counts are short by 1 | `dropped_row` — that amount was not parsed; the raw page text is searched for it and the page reported |
+| counts exceed printed by 1 and residual equals `−amount` of a duplicated adjacent pair | `duplicated_row` |
+| counts agree and `residual == 2 × amount` of some row | `side_flip` — one row landed on the wrong side |
+| counts short by N, residual is 0 | `zero_amount_rows` — benign |
+| a running-balance column exists and its chain breaks at row *i* (§7.10) | `row_level_break` — reported with the row index and page |
+| none of the above | `unknown` |
+
+A diagnosis is **reported, never auto-applied**, in this delivery. The
+repair path (rung 4) is where a diagnosis would become an edit, and it is
+out of scope (§1).
+
+## 6. Edge cases (normative)
+
+| # | input | required behavior |
+|---|---|---|
+| 1 | Encrypted or unopenable PDF | raise `ExtractionError`; never return a half-filled result |
+| 2 | Scanned page, vision disabled or unavailable | period returned with `transactions: []`, summary if readable, `reconciliation` `fail`/`unavailable`, warning naming the pages |
+| 3 | Statement prints no transaction counts | checks D/E `unavailable`; counts derived from transactions (§7.8) |
+| 4 | Statement prints no summary block | checks A–E `unavailable`; summary derived from transactions; `reconciled: false` with reason `no_printed_summary` |
+| 5 | Several statements concatenated | one entry per period in `periods[]`, each reconciled separately |
+| 6 | Transaction table continues across a page break | rows joined without duplicating any; §7.10 detects duplication |
+| 7 | A row whose description wraps to a second line | joined into one transaction (§7.6) |
+| 8 | Period with zero transactions | valid; reconciles iff `beginning == ending` |
+| 9 | Date outside the stated period | kept, flagged with a warning (§7.11) |
+
+## 7. Declared heuristics and assumptions
+
+Everything a developer would otherwise decide silently in code.
+
+1. **No file-specific or bank-specific behavior.** No branch may key on a
+   bank name, a filename, or a page count. Heuristics are tuned on the
+   declared tuning file only (§10.1); every other sample is held out.
+2. **Text layer vs scan:** a page is *scanned* when it yields fewer than
+   `min_chars_per_text_page = 20` characters. A document is scanned when
+   more than half its pages are.
+3. **Period anchors**, matched case-insensitively, in priority order:
+   a line matching `beginning|previous balance`; a change in the account
+   number found on the page; a `statement period` / `statement date` line
+   whose parsed dates differ from the current period's. A new period starts
+   at the page where an anchor fires. A file with no anchor is one period
+   spanning all pages.
+4. **`LayoutProfile`** is the only thing that varies between statements. It
+   declares: the x-ranges of the date, description, amount(s) and balance
+   columns; the date format; which **side strategy** applies (§7.6); and the
+   summary-block labels found (§7.5). It is data, never code.
+5. **Summary block labels** are matched by normalized substring against a
+   declared vocabulary — beginning: `beginning balance`, `previous balance`,
+   `opening balance`, `balance forward`; ending: `ending balance`,
+   `new balance`, `closing balance`; deposits: `deposits`, `credits`,
+   `deposits and credits`, `total deposits`, `additions`; withdrawals:
+   `withdrawals`, `debits`, `withdrawals and debits`, `total withdrawals`,
+   `subtractions`. The amount taken is the last money-shaped token on the
+   matching line. The vocabulary lives in one module constant and this
+   section mirrors it; extending it requires editing both in one commit.
+6. **Side strategy** — how a row becomes a deposit or a withdrawal. The
+   profile picks exactly one, in this priority:
+   1. `two_columns` — two distinct amount x-ranges: left/right decides;
+   2. `signed` — one amount column carrying `-`, `(...)`, trailing `-`,
+      or `CR`/`DR` markers: the sign decides;
+   3. `sections` — section headings partition the rows (e.g. "Deposits and
+      Additions", "Checks Paid", "Other Withdrawals"): the heading decides;
+   4. `balance_delta` — a running-balance column: the sign of
+      `balance[i] − balance[i−1]` decides.
+   When several are available the earliest applicable wins, and the others
+   become *verifiers* rather than deciders.
+7. **Template fingerprint** (profile cache key): SHA-256 over the normalized
+   text of the first page with all digits replaced by `0` — so two
+   statements of the same bank and template collide, and two different
+   months of the same account collide. Cache is on-disk, opt-in via
+   `--cache-dir`, and never consulted for correctness decisions.
+8. **Printed counts are frequently absent.** When a statement prints totals
+   but no counts (the tuning file does exactly this), `deposits_count` /
+   `withdrawals_count` are **derived from the parsed transactions**, checks
+   D/E report `unavailable`, and the result records which summary fields
+   were printed vs derived. Derived numbers are never presented as printed.
+9. **Money is `Decimal`, parsed from strings, never `float`.** Accepted
+   forms: `1,234.56`, `$1,234.56`, `-1,234.56`, `(1,234.56)`, `1,234.56-`,
+   `1,234.56 CR`, `1,234.56 DR`. Parentheses, a leading or trailing minus,
+   and `DR` mean negative; `CR` means positive. `float` appears only at JSON
+   serialization. Reconciliation tolerance is exactly `Decimal("0.00")`.
+10. **Running-balance chain** is used as a row-level verifier whenever a
+    balance column is present: `balance[i−1] ± amount[i] == balance[i]`. A
+    break localizes the error to row *i*. It is a verifier, not a parser —
+    a statement without the column loses this check and nothing else.
+11. **Dates** are parsed with the profile's declared format. When a
+    statement is ambiguous between `MM/DD` and `DD/MM`, the format that
+    yields all dates inside the stated period wins; if both do, `MM/DD` is
+    assumed (US statements) and a warning is recorded. A transaction date
+    outside the period is kept and warned about, never dropped: dropping it
+    would break reconciliation silently.
+12. **Description** is the text between the date and the first amount
+    column, whitespace-normalized. A row whose next line has no date and no
+    amount is a wrapped continuation and is appended to the previous
+    description.
+13. **The model never transcribes what cannot be verified.** Rung 2 sees at
+    most `max_sample_pages = 2` pages and returns a *profile*, not rows.
+    Rung 3 transcribes at most one page per call, and each page's output
+    must satisfy either its running-balance chain or a section subtotal
+    before it is accepted.
+14. **Bounds:** `max_profile_attempts = 3`; `max_llm_calls_per_statement`
+    and `max_cost_usd_per_statement` are config, enforced in the client, and
+    exceeding either aborts the ladder and returns the best result so far
+    with a warning. Default model `claude-opus-5`, `temperature` unset,
+    structured output enforced server-side by re-validating against the
+    `LayoutProfile` schema.
+15. **Provider is an installation parameter.** `LLM_PROVIDER` selects
+    `anthropic` (default) / `bedrock` / `vertex` / `foundry`; all four expose
+    the same `messages.create`. No code path depends on which is chosen.
+
+## 8. Observability
+
+One structured JSON log line per `extract()` call: `pdf`, `pages`,
+`scanned_pages`, `periods`, per period `{rows, side_strategy, checks,
+residual, diagnosis}`, `rung` reached, `llm_calls`, `prompt_tokens`,
+`completion_tokens`, `cost_usd`, `latency_ms` by stage, `warnings`. This line
+is the debugging story for "this statement came out wrong".
+
+## 9. Non-functional targets
+
+- Text-layer statement, rung 0: **< 5 s** and **$0.00** — no network call.
+- Rung 2 adds one LLM call per statement, not per row or per page.
+- Memory: pages are processed one at a time; a 50 MB PDF must not be loaded
+  as a whole into memory beyond what `pdfplumber` requires per page.
+- Targets are restated in the README **as measured**, including misses.
+
+## 10. Acceptance criteria
+
+### 10.1 Tuning vs held-out
+
+**Tuning file (heuristics may be tuned on it):**
+`Great Lakes Commerce Bank - x4071 - 2025-01.pdf`.
+
+**Held out (never inspected while tuning a threshold):** every other sample,
+including `S2.6.1.1-2 Account 6426`, `Binder2_Redacted`, `April 2021`, and any
+public statement used for the generalization check. Their pass rate therefore
+*measures* the heuristics instead of confirming them. This split exists
+because generalization to unseen statements is a third of the grade; a
+parser tuned on all four files would score itself.
+
+### 10.2 Definition of done
+
+`uv run python evals/run_evals.py` runs every file in `evals/expected/`,
+validates each result against `ExtractResult` and the §3 invariants, compares
+summary fields for **exact** equality, prints a pass/fail table with residuals
+and cost, writes a JSON report, and exits non-zero on any failure.
+
+Done means: the tuning file passes fully (all summary fields exact, period
+reconciled, checks A–C `ok`); every other file either passes or returns a
+**named, quantified** failure — residual, failing checks, diagnosis, and the
+page it points at. An unexplained failure is not done; an explained one is a
+result.
