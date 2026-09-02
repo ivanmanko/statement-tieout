@@ -66,7 +66,11 @@ truth for this shape. Nothing else may define or duplicate these fields.
    `beginning_balance` of the first period, `ending_balance` of the last,
    totals and counts summed; `transactions` is the concatenation in document
    order; `account.period` spans first start to last end. Top-level
-   `reconciliation.reconciled` is the AND over periods.
+   `reconciliation.reconciled` is the AND over periods, each
+   `checks[x]` is the **worst** state across periods
+   (`fail` > `unavailable` > `ok`), and `residual` is the sum of the period
+   residuals. Per-period diagnoses stay in `periods[]` — the aggregate names
+   no single cause, because it may have several.
 4. `summary.deposits_count == len([t for t in transactions if t.deposit])`
    and likewise for withdrawals — **within a period**. This is check D/E
    (§5) and it is an assertion, not a coincidence: when the statement prints
