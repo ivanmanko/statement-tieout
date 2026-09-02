@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from statistics import pstdev
 
 from ..money import parse_money
 from ..parse.labels import DEPOSIT_LABELS, WITHDRAWAL_LABELS
@@ -20,7 +21,8 @@ from .profile import Column, LayoutProfile, SideStrategy
 
 MIN_CANDIDATE_ROWS = 3
 COLUMN_GAP = 20.0
-MIN_COLUMN_SHARE = 0.30
+MIN_COLUMN_ROWS = 2
+MAX_EDGE_SPREAD = 2.0
 COLUMN_PAD = 2.0
 MIN_BALANCE_PAIRS = 2
 
@@ -44,12 +46,12 @@ def derive_profile(pages: list[Page]) -> LayoutProfile | None:
     if not clusters:
         return None
 
+    deposits, withdrawals = _classify_headings(headings, clusters)
     balance, amounts = _split_off_balance(clusters, rows)
     if not amounts:
         return None
     amounts = amounts[-2:]  # at most two, rightmost first (SPEC §7.17.5)
 
-    deposits, withdrawals = _classify_headings(headings)
     strategy = _side_strategy(amounts, rows, deposits, withdrawals, balance)
     if strategy is None:
         return None
@@ -65,10 +67,10 @@ def derive_profile(pages: list[Page]) -> LayoutProfile | None:
     )
 
 
-def _scan(pages: list[Page]) -> tuple[list[_Row], list[str]]:
+def _scan(pages: list[Page]) -> tuple[list[_Row], list[list[Word]]]:
     """Split every line into a candidate transaction row, a heading, or noise."""
     rows: list[_Row] = []
-    headings: list[str] = []
+    headings: list[list[Word]] = []
     for page in pages:
         for line in page.lines():
             money = [(word, value) for word in line if (value := _as_money(word.text))]
@@ -77,7 +79,7 @@ def _scan(pages: list[Page]) -> tuple[list[_Row], list[str]]:
                 date_words, date_format = leading
                 rows.append(_Row(date_words=date_words, date_format=date_format, money=money))
             elif leading is None and not money:
-                headings.append(" ".join(word.text for word in line))
+                headings.append(line)
     return rows, headings
 
 
@@ -95,13 +97,19 @@ def _leading_date(line: list[Word]) -> tuple[list[Word], str] | None:
 class _Cluster:
     column: Column
     rows: set[int]
+    left_edges: list[float]
+    right_edges: list[float]
 
-    def share(self, total: int) -> float:
-        return len(self.rows) / total
+    def is_a_column(self) -> bool:
+        """SPEC §7.17.3: amounts in a table are aligned; amounts in a sentence are not."""
+        if len(self.rows) < MIN_COLUMN_ROWS:
+            return False
+        spread = min(pstdev(self.left_edges), pstdev(self.right_edges))
+        return spread <= MAX_EDGE_SPREAD
 
 
 def _money_clusters(rows: list[_Row]) -> list[_Cluster]:
-    """Money midpoints split on horizontal gaps, sparse clusters discarded."""
+    """Money midpoints split on horizontal gaps; unaligned clusters discarded."""
     placed = sorted(
         ((word, index) for index, row in enumerate(rows) for word, _ in row.money),
         key=lambda pair: pair[0].center,
@@ -117,10 +125,12 @@ def _money_clusters(rows: list[_Row]) -> list[_Cluster]:
         _Cluster(
             column=_span(word for word, _ in group),
             rows={index for _, index in group},
+            left_edges=[word.x0 for word, _ in group],
+            right_edges=[word.x1 for word, _ in group],
         )
         for group in groups
     ]
-    return [c for c in clusters if c.share(len(rows)) >= MIN_COLUMN_SHARE]
+    return [cluster for cluster in clusters if cluster.is_a_column()]
 
 
 def _split_off_balance(
@@ -140,8 +150,8 @@ def _behaves_like_a_running_balance(
     candidate: _Cluster, others: list[_Cluster], rows: list[_Row]
 ) -> bool:
     """SPEC §7.17.4: b[i] − b[i−1] == ± the row's amount, on a majority of pairs."""
-    balances = [_value_in(row, candidate) for row in rows]
-    amounts = [_value_in(row, others[-1]) for row in rows]
+    balances = [_value_in(row, [candidate]) for row in rows]
+    amounts = [_value_in(row, others) for row in rows]
     pairs = [
         (balances[i] - balances[i - 1], amounts[i])
         for i in range(1, len(rows))
@@ -153,22 +163,34 @@ def _behaves_like_a_running_balance(
     return holds * 2 > len(pairs)
 
 
-def _value_in(row: _Row, cluster: _Cluster) -> Decimal | None:
+def _value_in(row: _Row, clusters: list[_Cluster]) -> Decimal | None:
     for word, value in row.money:
-        if cluster.column.holds(word.center):
+        if any(cluster.column.holds(word.center) for cluster in clusters):
             return value
     return None
 
 
-def _classify_headings(headings: list[str]) -> tuple[list[str], list[str]]:
+def _classify_headings(
+    headings: list[list[Word]], columns: list[_Cluster]
+) -> tuple[list[str], list[str]]:
+    """SPEC §7.17.6: a line sitting over the money columns is the table's own header."""
     deposits, withdrawals = [], []
-    for heading in headings:
+    for line in headings:
+        if any(_overlaps(word, columns) for word in line):
+            continue
+        heading = " ".join(word.text for word in line)
         normalized = " ".join(heading.split()).casefold()
         if any(label in normalized for label in DEPOSIT_LABELS):
             deposits.append(heading)
         elif any(label in normalized for label in WITHDRAWAL_LABELS):
             withdrawals.append(heading)
     return deposits, withdrawals
+
+
+def _overlaps(word: Word, columns: list[_Cluster]) -> bool:
+    return any(
+        word.x0 <= cluster.column.x1 and word.x1 >= cluster.column.x0 for cluster in columns
+    )
 
 
 def _side_strategy(

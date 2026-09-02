@@ -171,6 +171,11 @@ class TestColumnsAreFoundByAlignmentNotFrequency:
     carries 16% of the rows, its debits column 83%, its balance column 100% —
     and all three have a right-edge spread under 0.35 points. Any share
     threshold that rejects a stray amount also rejects that deposits column.
+
+    Two deposits in seven rows here is 29%, below the 30% share threshold this
+    replaced, and well above the two rows alignment needs. A column seen only
+    *once* stays genuinely ambiguous — neither alignment nor frequency can
+    tell it from an amount inside a sentence — and is not claimed.
     """
 
     def lopsided(self):
@@ -187,10 +192,12 @@ class TestColumnsAreFoundByAlignmentNotFrequency:
                            balance="1,774,622.72"),
             two_column_row(160.0, "04/04", "CHECK 25226", withdrawal="1,000.00",
                            balance="1,773,622.72"),
+            two_column_row(172.0, "04/05", "REMOTE DEPOSIT LINK", deposit="4,418.44",
+                           balance="1,778,041.16"),
         ]
         return page(*rows)
 
-    def test_a_column_on_one_row_in_six_is_still_a_column(self):
+    def test_a_column_on_two_rows_in_seven_is_still_a_column(self):
         profile = derive_profile([self.lopsided()])
         assert profile.side_strategy is SideStrategy.TWO_COLUMNS
         assert len(profile.amount_columns) == 2
@@ -200,8 +207,8 @@ class TestColumnsAreFoundByAlignmentNotFrequency:
 
         profile = derive_profile([self.lopsided()])
         parsed = parse_rows([self.lopsided()], profile)
-        assert len(parsed.transactions) == 6
-        assert sum(1 for t in parsed.transactions if t.deposit is not None) == 1
+        assert len(parsed.transactions) == 7
+        assert sum(1 for t in parsed.transactions if t.deposit is not None) == 2
         assert sum(1 for t in parsed.transactions if t.withdrawal is not None) == 5
 
 
