@@ -28,8 +28,15 @@ OCR_SCALE = 3.0
 MIN_OCR_CONFIDENCE = 0.5
 """Segments the engine is this unsure about are dropped rather than guessed at."""
 
-#: Boundaries where a segment is split, in addition to whitespace.
-_BOUNDARY = re.compile(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])|(?<=[a-z])(?=[A-Z])")
+#: Boundaries where a segment is split, in addition to whitespace. A colon is a
+#: field separator that OCR glues to its label (`2024:LASTSTATEMENT`).
+_BOUNDARY = re.compile(
+    r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])|(?<=[a-z])(?=[A-Z])|(?<=:)|(?=:)"
+)
+
+#: The one repair (SPEC §7.2): a thousands separator misread as a slash or a
+#: pipe. Nothing but money takes this shape — a date has no `.dd` tail.
+_MISREAD_SEPARATOR = re.compile(r"^\d{1,3}(?:[/|]\d{3})+\.\d{2}$")
 
 
 @dataclass(frozen=True)
@@ -71,7 +78,14 @@ def words_from_segments(segments: list[Segment], scale: float) -> list[Word]:
 
 
 def _tokenize(text: str) -> list[str]:
-    return [token for part in text.split() for token in _BOUNDARY.split(part) if token]
+    tokens = (token for part in text.split() for token in _BOUNDARY.split(part))
+    return [_repair(token) for token in tokens if token and token != ":"]
+
+
+def _repair(token: str) -> str:
+    if _MISREAD_SEPARATOR.match(token):
+        return token.replace("/", ",").replace("|", ",")
+    return token
 
 
 def read_page(page, scale: float = OCR_SCALE) -> list[Word]:

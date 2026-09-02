@@ -18,6 +18,8 @@ DATE_FORMATS: tuple[str, ...] = (
     "%Y-%m-%d",
     "%B %d, %Y",
     "%b %d, %Y",
+    "%B %d %Y",
+    "%b %d %Y",
     "%d %B %Y",
     "%d %b %Y",
 )

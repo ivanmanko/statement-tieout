@@ -63,6 +63,7 @@ _MASKED_ACCOUNT = re.compile(
 _FOUR_DIGITS = re.compile(r"\b(\d{4})\b")
 _BARE_INTEGER = re.compile(r"\b\d{1,3}\b")
 _LONG_DIGITS = re.compile(r"\d{4,}")
+_DIGIT_RUN = re.compile(r"\d{5,}")
 _MONEY_SHAPED = re.compile(r"[-(]?\$?\d[\d,]*\.\d{2}\)?-?")
 
 RawLine = "str | Sequence[Word] | _Line"
@@ -312,10 +313,14 @@ def read_last4(lines: Sequence[RawLine]) -> str | None:
         if masked:
             return masked.group(1) or masked.group(2)
     for line in resolved:
-        if "account" in line.text.casefold():
-            digits = _FOUR_DIGITS.findall(line.text)
-            if digits:
-                return digits[-1]
+        if "account" not in _squash(line.text):
+            continue
+        exact = _FOUR_DIGITS.findall(line.text)
+        if exact:
+            return exact[-1]
+        runs = _DIGIT_RUN.findall(line.text)
+        if runs:
+            return max(runs, key=len)[-4:]
     return None
 
 
@@ -336,13 +341,13 @@ def _cycle_pair(lines: Sequence[_Line]) -> DateRange:
     """`... : LAST STATEMENT` over `... : THIS STATEMENT` (SPEC §7.15)."""
     start = end = None
     for line in lines:
-        lowered = line.text.casefold()
+        squashed = _squash(line.text)
         dates = find_dates(line.text)
         if not dates:
             continue
-        if start is None and CYCLE_START_LABEL in lowered:
+        if start is None and _squash(CYCLE_START_LABEL) in squashed:
             start = dates[0]
-        elif end is None and CYCLE_END_LABEL in lowered:
+        elif end is None and _squash(CYCLE_END_LABEL) in squashed:
             end = dates[0]
     return DateRange(start=start, end=end)
 
