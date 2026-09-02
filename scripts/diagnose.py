@@ -54,7 +54,8 @@ def diagnose(path: Path) -> None:
         print("period anchors:")
         for a, hits in anchor_hits.items():
             if hits:
-                print(f"  {a:<26} x{len(hits):<3} pages {hits[:12]}{'...' if len(hits) > 12 else ''}")
+                more = "..." if len(hits) > 12 else ""
+                print(f"  {a:<26} x{len(hits):<3} pages {hits[:12]}{more}")
         print(f"'balance' column word on pages: {balance_pages[:12]}"
               f"{'...' if len(balance_pages) > 12 else ''}")
 
