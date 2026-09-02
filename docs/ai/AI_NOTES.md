@@ -80,3 +80,82 @@ No cost or latency number exists for the model-backed rungs, because they are
 not built. Every number in the README comes from a harness run; there are no
 estimates in it, and the sections that have no measurement say so rather than
 quoting a target as if it had been met.
+
+## What the third and fourth statements changed
+
+The samples arrived one at a time, and each one falsified something that had
+looked settled. That is the useful record here, so it is kept in order.
+
+**Two of three files are scans, and not the ones I expected.** The 53.8 MB
+file was the obvious candidate; the actual scans are 565 KB and 6.2 MB, while
+the 13.7 KB file is digital. Size predicts nothing. See ADR-005 — this is
+what moved OCR out of the ladder and into ingest.
+
+**The share threshold for money columns was wrong, and measurement said so
+before any test did.** SPEC §7.17 originally discarded a money cluster
+appearing on under 30% of rows, as a way of rejecting amounts embedded in
+descriptions. Fulton's statement is mostly checks: its deposits column sits on
+16% of rows. Printing the actual clusters settled it —
+
+| cluster | share | right-edge spread |
+|---|---|---|
+| deposits | 16.1% | 0.25 |
+| debits | 83.2% | 0.33 |
+| balance | 100% | 0.31 |
+
+Frequency separates nothing; **alignment separates everything**. Amounts in a
+table are aligned by typesetting, an amount inside a sentence is wherever the
+sentence put it. The rule is now edge alignment plus a floor of two rows, and
+a column seen only *once* is left unclaimed, because at n=1 neither signal can
+tell it from prose.
+
+**A test I wrote asserted the wrong thing, twice.** The lopsided-column
+fixture had a single deposit row, which the honest rule cannot recover; I
+changed the fixture rather than weaken the rule. And three residual-diagnosis
+fixtures were ambiguous — a residual of −200 against rows of 100, 200 and 50
+fits both "twice a row of 100" and "equals a row of 200" — so they were not
+testing what they claimed. Both are cases of the test being wrong, which is
+worth more attention than it usually gets: a green suite around a bad fixture
+is a worse position than a red one.
+
+**Four rules that looked obviously right, each broken by one real page:**
+
+- the summary block is a *vertical* label-and-amount line — Fulton prints a
+  row of labels above a row of amounts, matched by column;
+- the letterhead is a *line* — Fulton sets `Fulton Bank` at 18.4 pt beside
+  `Lancaster, PA 17604` at 10.4 pt on the *same* line, so the unit is the
+  word;
+- a masked account is `x` followed by four digits — `P.O.Box 4887` ends in
+  `x`, and OCR of the same line on another page gives `P.O.B 0 x 4887`;
+- a differing statement period means a new period — a continuation page
+  prints only the end date, which split one statement into three.
+
+Each was found by running the thing, not by reasoning about it.
+
+**Raising the OCR resolution does not fix OCR errors.** Renasant's
+`32,537.69` reads as `32/537.69` at render scales 3, 4 and 5 alike. Measuring
+that took two minutes and replaced a plausible fix with a correct one: a
+single declared token repair, safe because a wrong repair still has to pass
+reconciliation.
+
+**Reading a scan is worth more than reporting that you cannot.** Before
+ADR-005 this project returned nothing at all for two of three files and said
+so honestly. Honest and nearly worthless. It now reads 284 transactions off
+fifteen scanned pages and reconciles them to the cent, for $0.00.
+
+## What is still wrong, and known
+
+The Renasant statement prints **two transactions per line** in its `CHECKS`
+section. The row model reads one, so four of ten rows are missed and the
+period does not reconcile — reported with its residual rather than smoothed
+over. This is the next thing to build, and notably it is *not* a model
+problem: it is a change to the row model.
+
+## What is not measured
+
+Rung 2 — the model-derived layout profile — is built and unit-tested against
+a stub client, but no sample has failed in a way that triggers it, so there is
+no real run to quote a cost or a latency from. Every number in the README came
+from a harness run with no API key configured at all. There are no estimates
+in it, and the sections with no measurement say so rather than quoting a
+target as though it had been met.

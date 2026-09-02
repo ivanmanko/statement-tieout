@@ -45,7 +45,7 @@ free verifier accepts or rejects it, and we climb only on rejection:
 |---|---|---|---|
 | 0 | layout profile derived from word coordinates | $0 | yes |
 | 1 | cached profile for a known template fingerprint | $0 | no |
-| 2 | model profiles the layout from 1–2 **sample pages** | ~1 call | no |
+| 2 | model profiles the layout from 1–2 **sample pages** | ~1 call | yes |
 | 3 | model transcribes pages OCR reads poorly | N calls | no |
 | 4 | bounded agentic repair of a period that will not close | bounded | no |
 
@@ -56,8 +56,15 @@ profile* — where the columns are, how the sides are marked — and the rows ar
 then read deterministically. The rule is not "never let a model read a table";
 it is **never transcribe what you cannot verify**.
 
-**Every sample below is handled at rung 0**, so no rung above it is built.
-See [Cut scope](#cut-scope).
+Two rules make the ladder safe, and both are tested: the model is asked
+**only after** the verifier has refused the free answer, and its profile is
+kept **only if** the rows it produces reconcile. A model that makes things
+worse is discarded, so it can never turn an honest failure into a confident
+wrong result.
+
+**Every sample below is handled at rung 0**, so rung 2 never fires on them and
+every number in the accuracy table was produced without an API key. See
+[Cut scope](#cut-scope).
 
 ## Scans are ingest, not a special case
 
@@ -225,9 +232,10 @@ confidently wrong side is not.
   be better.
 - **Latency on scans is ~3.4 s per page**, so ~51 s for fifteen pages. Fine
   for a batch tool, wrong for an interactive one.
-- **No cost or latency figure exists for the model-backed rungs**, because
-  none is built. The $0.00 in the table is real, and it is the whole story
-  so far.
+- **Rung 2 is unmeasured.** It is built and tested against a stub, but no
+  sample has failed in a way that triggers it, so there is no real run to
+  quote a cost or a latency from. The $0.00 in the table is real, and it is
+  the whole story so far.
 
 ## Cut scope
 
@@ -249,18 +257,34 @@ Deliberate, and recorded here rather than silently implemented:
 
 ## Provider configuration
 
-For the rungs that use a model, the provider is an **installation
-parameter**, not a build-time choice — `LLM_PROVIDER` selects `anthropic`
-(default), `bedrock`, `vertex` or `foundry`, all of which expose the same
-`messages.create` through the same SDK
-([ADR-004](docs/adr/004-agent-harness-and-provider.md)). For a product
-deployed into each client's own VPC, where the model is hosted differently
-everywhere, that is worth more than any particular cloud.
+The provider is an **installation parameter**, not a build-time choice — for
+a product deployed into each client's own VPC, where the model is hosted
+differently everywhere, that is worth more than any particular cloud
+([ADR-004](docs/adr/004-agent-harness-and-provider.md)).
 
-The agent loop for rung 4 is the Anthropic SDK's tool runner over domain
+```bash
+cp .env.example .env     # then set LLM_API_KEY
+```
+
+`LLM_PROVIDER` selects an **OpenAI-compatible** endpoint — DeepSeek by
+default, at roughly a tenth of Claude's per-token price — or **Claude**, in
+which case `LLM_PLATFORM` picks first-party, Bedrock, Vertex or Foundry, all
+of which expose the same `messages.create` through the same SDK. Nothing else
+in the codebase knows which is in use.
+
+With nothing configured, `build_client()` returns `None` and the
+deterministic path runs alone. That is a supported mode, not a degraded one:
+it is what produced every number above.
+
+DeepSeek supports `json_object` but not strict `json_schema`, so the schema
+travels in the prompt and the answer is validated on our side — and then
+again, more usefully, by reconciliation. Note that rung 2 needs **no vision
+model** even for scans: OCR ingest has already turned the pixels into words
+with coordinates, and that is what the model is shown.
+
+The agent loop for rung 4 will be the Anthropic SDK's tool runner over domain
 tools, **not** the Claude Agent SDK: `extract()` must stay an ordinary Python
-function that runs on a reviewer's machine with `pip install` and one
-credential.
+function that runs after `pip install` with one credential.
 
 ## How this was built
 
