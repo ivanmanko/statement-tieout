@@ -218,8 +218,11 @@ Everything a developer would otherwise decide silently in code.
 9. **Money is `Decimal`, parsed from strings, never `float`.** Accepted
    forms: `1,234.56`, `$1,234.56`, `-1,234.56`, `(1,234.56)`, `1,234.56-`,
    `1,234.56 CR`, `1,234.56 DR`. Parentheses, a leading or trailing minus,
-   and `DR` mean negative; `CR` means positive. `float` appears only at JSON
-   serialization. Reconciliation tolerance is exactly `Decimal("0.00")`.
+   and `DR` mean negative; `CR` means positive. A money token has **exactly
+   two decimal places**: `1234` and `1,234.5` are not money. That rule is what
+   keeps years, page numbers and account digits out of the amount scan.
+   `float` appears only at JSON serialization. Reconciliation tolerance is
+   exactly `Decimal("0.00")`.
 10. **Running-balance chain** is used as a row-level verifier whenever a
     balance column is present: `balance[i−1] ± amount[i] == balance[i]`. A
     break localizes the error to row *i*. It is a verifier, not a parser —
