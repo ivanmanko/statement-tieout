@@ -17,7 +17,6 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from statistics import median
 
 from ..layout.dates import find_dates, starts_with_date
 from ..money import ZERO, MoneyToken, find_money

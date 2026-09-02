@@ -254,7 +254,10 @@ Everything a developer would otherwise decide silently in code.
 3. **Period anchors**, matched case-insensitively: a line carrying a
    beginning-balance label (§7.5); a change in the account number found on
    the page (§7.15); a `statement period` / `statement date` line whose
-   dates differ from the current period's. A new period starts at the page
+   dates differ from the current period's — **compared field by field**, so
+   a page stating only an end date does not read as a change of period. A
+   continuation page often prints half the range, and splitting on that
+   invents a period that is not there. A new period starts at the page
    where an anchor fires; a file with no anchor is one period spanning all
    pages.
 

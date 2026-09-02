@@ -92,3 +92,22 @@ class TestBoilerplateGuard:
             statement_page(4, "Beginning balance 3,000.00"),
         ]
         assert len(segment(pages)) == 3
+
+
+class TestPartialPeriodDates:
+    """SPEC §7.3 — a page stating half the range is a continuation, not a new period."""
+
+    def test_an_end_date_alone_does_not_split(self):
+        pages = [
+            statement_page(1, "Statement period 04/01/2021 - 04/30/2021"),
+            plain(2),
+            statement_page(3, "Statement Date: 04/30/2021"),
+        ]
+        assert len(segment(pages)) == 1
+
+    def test_a_genuinely_different_end_still_splits(self):
+        pages = [
+            statement_page(1, "Statement period 04/01/2021 - 04/30/2021"),
+            statement_page(2, "Statement Date: 05/31/2021"),
+        ]
+        assert len(segment(pages)) == 2
