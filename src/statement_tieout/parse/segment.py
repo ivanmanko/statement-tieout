@@ -62,7 +62,19 @@ def _starts_a_period(
         return True
     if anchor.last4 is not None and last4 is not None and anchor.last4 != last4:
         return True
-    return anchor.period is not None and period is not None and anchor.period != period
+    return _period_differs(anchor.period, period)
+
+
+def _period_differs(seen: DateRange | None, current: DateRange | None) -> bool:
+    """SPEC §7.3: compare only the endpoints both pages actually state."""
+    if seen is None or current is None:
+        return False
+    return any(
+        getattr(seen, field) is not None
+        and getattr(current, field) is not None
+        and getattr(seen, field) != getattr(current, field)
+        for field in ("start", "end")
+    )
 
 
 def _anchors_on(page: Page) -> _Anchors:
