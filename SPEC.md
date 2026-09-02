@@ -355,12 +355,20 @@ Everything a developer would otherwise decide silently in code.
        leading tokens wins; the column spans those tokens' extent.
     3. **Money columns:** the horizontal midpoints of all money tokens on
        candidate rows are sorted and split wherever the gap exceeds
-       `column_gap = 20.0` points. A cluster appearing on fewer than
-       `min_column_share = 30%` of candidate rows is discarded as an amount
-       embedded in a description. **Known limitation:** a genuine two-column
-       layout whose rows are more lopsided than 70/30 loses its rarer
-       column; the resulting reconciliation failure is the signal to
-       escalate, not a silent wrong answer.
+       `column_gap = 20.0` points. A cluster is a real column when it is
+       **aligned** — the standard deviation of its left *or* right edges is
+       at most `max_edge_spread = 2.0` points — and occurs on at least
+       `min_column_rows = 2` rows. Anything else is an amount embedded in a
+       description.
+
+       Alignment rather than frequency, because frequency is the wrong
+       signal and measurement says so. On a real statement the three money
+       columns occur on 16%, 83% and 100% of rows while every one of them
+       has an edge spread under 0.35 points; a share threshold high enough
+       to reject stray amounts also rejects the deposits column of any
+       statement that is mostly withdrawals. Amounts in a table are aligned
+       with each other by typesetting; an amount inside a description is
+       wherever the sentence put it.
     4. **Balance column:** the rightmost surviving cluster, *if* it behaves
        like a running balance — `b[i] − b[i−1]` equals ± the row's amount on
        a majority of consecutive rows. Otherwise there is no balance column
@@ -373,7 +381,11 @@ Everything a developer would otherwise decide silently in code.
        at least two section headings recognised → `sections`; a balance
        column → `balance_delta`; none of these → no profile, escalate.
        A **section heading** is a line with no date and no money whose text
-       matches the §7.5 deposit or withdrawal label vocabulary.
+       matches the §7.5 deposit or withdrawal label vocabulary **and whose
+       words do not overlap any detected money column** — that last clause
+       excludes the table's own column headers, which carry exactly those
+       words ("Deposits/Credits", "Checks/Debits") and would otherwise be
+       read as section markers.
 
 ## 8. Observability
 

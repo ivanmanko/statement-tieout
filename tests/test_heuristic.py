@@ -8,7 +8,16 @@ than guessing when it cannot. Declining is what makes escalation meaningful.
 from statement_tieout.layout import SideStrategy
 from statement_tieout.layout.heuristic import derive_profile
 
-from .helpers import DATE_X, DESC_X, LEFT_X, RIGHT_X, line, page, rows_page
+from .helpers import (
+    DATE_X,
+    DESC_X,
+    LEFT_X,
+    RIGHT_X,
+    line,
+    page,
+    rows_page,
+    two_column_row,
+)
 
 SIGNED_PAGE = rows_page(
     ("01/01/2025", "CIGNA CLAIMS PAYMENT", "8,164.30", "2,023,046.77"),
@@ -153,3 +162,61 @@ class TestYearlessDates:
         profile = derive_profile([p])
         assert profile is not None
         assert profile.date_formats[0] == "%m/%d"
+
+
+class TestColumnsAreFoundByAlignmentNotFrequency:
+    """SPEC §7.17.3 — the rule that a real statement disproved.
+
+    Fulton Bank's April statement is mostly checks: its deposits column
+    carries 16% of the rows, its debits column 83%, its balance column 100% —
+    and all three have a right-edge spread under 0.35 points. Any share
+    threshold that rejects a stray amount also rejects that deposits column.
+    """
+
+    def lopsided(self):
+        rows = [
+            two_column_row(100.0, "04/02", "REMOTE DEPOSIT LINK", deposit="2,817.27",
+                           balance="1,843,159.31"),
+            two_column_row(112.0, "04/02", "AMEX EPAYMENT", withdrawal="138.98",
+                           balance="1,843,020.33"),
+            two_column_row(124.0, "04/02", "CHECK 25205", withdrawal="67,362.49",
+                           balance="1,775,657.84"),
+            two_column_row(136.0, "04/03", "CHECK 25221", withdrawal="386.23",
+                           balance="1,775,271.61"),
+            two_column_row(148.0, "04/03", "CHECK 25225", withdrawal="648.89",
+                           balance="1,774,622.72"),
+            two_column_row(160.0, "04/04", "CHECK 25226", withdrawal="1,000.00",
+                           balance="1,773,622.72"),
+        ]
+        return page(*rows)
+
+    def test_a_column_on_one_row_in_six_is_still_a_column(self):
+        profile = derive_profile([self.lopsided()])
+        assert profile.side_strategy is SideStrategy.TWO_COLUMNS
+        assert len(profile.amount_columns) == 2
+
+    def test_the_lopsided_layout_parses_both_sides(self):
+        from statement_tieout.parse.rows import parse_rows
+
+        profile = derive_profile([self.lopsided()])
+        parsed = parse_rows([self.lopsided()], profile)
+        assert len(parsed.transactions) == 6
+        assert sum(1 for t in parsed.transactions if t.deposit is not None) == 1
+        assert sum(1 for t in parsed.transactions if t.withdrawal is not None) == 5
+
+
+class TestTableHeadersAreNotSectionHeadings:
+    """SPEC §7.17.6 — the column header carries the section vocabulary verbatim."""
+
+    def test_a_header_row_over_the_money_columns_is_not_a_section(self):
+        header = line(88.0, (DATE_X, "Date"), (DESC_X, "Description"),
+                      (330.0, "Deposits/Credits"), (420.0, "Checks/Debits"),
+                      (515.0, "Balance"))
+        rows = [
+            two_column_row(100.0 + i * 12.0, f"04/0{i + 1}", "PAYMENT",
+                           withdrawal=f"{100 + i}.00", balance=f"{1000 - i}.00")
+            for i in range(4)
+        ]
+        profile = derive_profile([page(header, *rows)])
+        assert profile.deposit_sections == []
+        assert profile.withdrawal_sections == []
