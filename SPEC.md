@@ -106,6 +106,14 @@ it, and we climb only on rejection.
    (never the whole table, §7.13) to the model and ask for a `LayoutProfile`
    under a strict schema. Re-parse, re-reconcile. At most
    `max_profile_attempts` (§7.14) attempts, each fed the previous residual.
+
+   The sample is sent as **words with their coordinates**, not as an image:
+   ingest has already produced those for a scan as well as for a text layer
+   (§7.2), so this rung needs no vision model and works the same on both.
+   The model's answer is validated against the `LayoutProfile` schema
+   server-side and then, more importantly, by reconciliation — a profile
+   that parses into rows which do not close is rejected exactly like a
+   heuristic one.
 8. **Rung 3 — vision transcription** (scanned pages only): transcribe
    **one page at a time**, each page verified locally (§7.13).
 9. **Rung 4 — agentic repair** (bounded): out of scope for this delivery;
