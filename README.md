@@ -15,9 +15,9 @@ what went wrong along the way is in [docs/ai/AI_NOTES.md](docs/ai/AI_NOTES.md).
 
 | | |
 |---|---|
-| Tests | 154 unit tests — no LLM, no network, no sample PDF required |
+| Tests | 199 unit tests — no LLM, no network, no sample PDF required |
 | Accuracy | measured by `evals/run_evals.py`, table below |
-| Cost on a text-layer statement | **$0.00** — the deterministic rung makes no API call |
+| Cost | **$0.00 and zero API calls** on every sample, scans included |
 
 ## The idea
 
@@ -41,22 +41,40 @@ informative.
 Extraction is an escalation ladder. Each rung produces a candidate, the same
 free verifier accepts or rejects it, and we climb only on rejection:
 
-| rung | producer | cost |
-|---|---|---|
-| 0 | layout profile derived from word coordinates | $0 |
-| 1 | cached profile for a known template fingerprint | $0 |
-| 2 | model profiles the layout from 1–2 **sample pages** | ~1 call / statement |
-| 3 | vision transcription, one page per call (scans) | N calls |
-| 4 | bounded agentic repair of a period that will not close | bounded |
+| rung | producer | cost | built |
+|---|---|---|---|
+| 0 | layout profile derived from word coordinates | $0 | yes |
+| 1 | cached profile for a known template fingerprint | $0 | no |
+| 2 | model profiles the layout from 1–2 **sample pages** | ~1 call | no |
+| 3 | model transcribes pages OCR reads poorly | N calls | no |
+| 4 | bounded agentic repair of a period that will not close | bounded | no |
 
 A model asked to transcribe three hundred rows will drop or double a few, and
 the balance equation will say so immediately — that is the trap the sample
-files are built around. So on rung 2 the model returns a *layout profile* —
-where the columns are, how the sides are marked — and the rows are then read
-deterministically. The rule is not "never let a model read a table"; it is
-**never transcribe what you cannot verify**.
+files are built around. So when the model is used it returns a *layout
+profile* — where the columns are, how the sides are marked — and the rows are
+then read deterministically. The rule is not "never let a model read a table";
+it is **never transcribe what you cannot verify**.
 
-**Rungs 2–4 are not built in this delivery.** See [Cut scope](#cut-scope).
+**Every sample below is handled at rung 0**, so no rung above it is built.
+See [Cut scope](#cut-scope).
+
+## Scans are ingest, not a special case
+
+Two of the three samples have **no text layer at all** — and not the big one:
+a 565 KB file and a 6.2 MB file are pure scans while the 13.7 KB one is
+digital. Both scans are rasterized digital documents, crisp machine-set type
+rather than photographs.
+
+So a scanned page is rendered and read by a local OCR engine (ONNX,
+pip-installable, no system dependency, no network) which returns **text with
+bounding boxes** — exactly the words-with-coordinates a text layer gives.
+Everything downstream is then identical, and OCR's inevitable digit errors
+meet the same free verifier as everything else
+([ADR-005](docs/adr/005-ocr-is-ingest-not-a-rung.md)).
+
+Measured: 284 transactions across 15 scanned pages, reconciling to the cent
+against the printed totals, in 51 seconds, for **$0.00**.
 
 ## Reconciliation
 
@@ -137,29 +155,36 @@ assignment's files there before running the harness.
 ## Measured accuracy
 
 Produced by `uv run python evals/run_evals.py`, not estimated. `match` is
-exact equality against ground truth a human read off the printed page,
-recorded in `evals/expected/`.
+exact equality against ground truth a human read off the printed page — off a
+rendering of it, for the scans — recorded in `evals/expected/`.
 
-| file | periods | rows | reconciled | checks ok | residual | match | LLM calls | cost | latency |
-|---|---|---|---|---|---|---|---|---|---|
-| Great Lakes x4071 2025-01 | 1 | 292 | **yes** | 4/6 | 0.00 | **11/11** | 0 | $0.0000 | 0.42 s |
-| S2.6.1.1-2 Account 6426 | 1 | 0 | no | 0/6 | — | n/a | 0 | $0.0000 | 0.01 s |
+| file | ingest | periods | rows | reconciled | checks ok | residual | match | calls | cost | latency |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Great Lakes x4071 2025-01 | text | 1 | 292 | **yes** | 4/6 | 0.00 | **11/11** | 0 | $0.00 | 0.2 s |
+| April 2021 (Fulton Bank) | **OCR** | 1 | 284 | **yes** | 4/6 | 0.00 | **8/8** | 0 | $0.00 | 51 s |
+| S2.6.1.1-2 Acct 6426 (Renasant) | **OCR** | 1 | 6 of 10 | no | 1/6 | 13,871.16 | 7/9 | 0 | $0.00 | 6 s |
+
+Three banks, three unrelated layouts, one parser, no bank-specific code.
 
 **Great Lakes** — the tuning file (SPEC §10.1). Every ground-truth field
-exact: bank, account, period, all six summary values, period count and
-transaction count. The two count checks are `unavailable` because this
-statement prints totals but no counts; the counts in the output are derived
-and marked as such.
+exact. One signed amount column plus a running balance.
 
-**S2.6.1.1-2 Account 6426** — four pages, **zero characters of text layer**.
-A pure scan. The extractor reads nothing, reports every check `unavailable`,
-names the pages in a warning, and exits non-zero. Reading it needs rung 3,
-which is out of scope here. No ground truth is recorded for it because
-obtaining any would require the transcription that is missing.
+**April 2021** — held out, and the strongest result here: fifteen scanned
+pages, a *horizontal* summary block (labels in one row, amounts in the next),
+two amount columns of which the deposits column carries only 16% of the rows,
+and a logo set at 18.4 pt beside a 10.4 pt address on the same line. Every
+ground-truth field exact; the period reconciles to the cent.
 
-> `Binder2_Redacted.pdf` (53.8 MB) and `April 2021.pdf` (6.2 MB) are not yet
-> in this table. When they are run, this section is regenerated from the
-> harness rather than edited by hand.
+**S2.6.1.1-2 Account 6426** — held out, and the one that does not reconcile.
+Bank, account, period and all four printed totals are read correctly, and the
+printed block closes against itself. But this statement is section-based
+(`CHECKS` / `OTHER DEBITS` / `CREDITS`) and its `CHECKS` section prints **two
+transactions per line** — `NUMBER DATE AMOUNT NUMBER DATE AMOUNT`. The row
+model reads one transaction per line, so 4 of 10 rows are missed and the
+residual is 13,871.16. Named, quantified, reported.
+
+> `Binder2_Redacted.pdf` (53.8 MB) has not been run. When it is, this section
+> is regenerated from the harness rather than edited by hand.
 
 ## Generalization
 
@@ -182,35 +207,43 @@ confidently wrong side is not.
 
 ## Known weaknesses
 
-- **Scans are not read at all.** Half the samples available while building
-  this are scanned. Rung 3 is designed and not built.
-- **A lopsided two-column layout loses its rarer column.** A money cluster
-  appearing on under 30% of rows is discarded as an amount embedded in a
-  description (SPEC §7.17.3). A statement that is 90% deposits would lose the
-  withdrawal column — and then fail to reconcile, which is the right failure
-  mode but still a failure.
-- **Multi-period detection is untested against a real binder.** The anchors
-  and the boilerplate guard are covered by synthetic fixtures only.
-- **Ground truth for the summary is read by the same eyes that wrote the
-  parser**, from the same printed block. `printed_block_closes` catches a
-  misread that breaks the block's own arithmetic, but not one that preserves
-  it. An independent reader would be better.
-- **No cost or latency figure exists for the LLM rungs**, because they are
-  not built. The $0.00 in the table is real, and it is only the free rung.
+- **One transaction per line.** A section printing two side by side loses
+  half its rows (above). The single largest correctness gap.
+- **Descriptions from a scan are less faithful.** OCR returns line segments
+  and drops spaces, so an all-capitals description stays one token
+  (`REMOTEDEPOSITLINK`). Amounts, dates and balances are unaffected, which is
+  why reconciliation still works — but a consumer of `description` should
+  know.
+- **A column seen only once is not claimed.** Alignment identifies a money
+  column from two occurrences; one is genuinely ambiguous with an amount
+  inside a sentence, and is left out rather than guessed.
+- **The bank name is the largest type on the page**, which on a scan whose
+  logo OCRs onto two lines returns `RENASANT` rather than `RENASANT BANK`.
+- **Ground truth for the summary was read by the same eyes that wrote the
+  parser.** `printed_block_closes` catches a misread that breaks the block's
+  own arithmetic, but not one that preserves it. An independent reader would
+  be better.
+- **Latency on scans is ~3.4 s per page**, so ~51 s for fifteen pages. Fine
+  for a batch tool, wrong for an interactive one.
+- **No cost or latency figure exists for the model-backed rungs**, because
+  none is built. The $0.00 in the table is real, and it is the whole story
+  so far.
 
 ## Cut scope
 
 Deliberate, and recorded here rather than silently implemented:
 
 - **HTTP API and UI** — the assignment marks them "really optional".
-- **Rungs 2–4** — the model-backed layout profile, vision transcription and
-  the bounded repair agent. The seams exist (`LayoutProfile` is already the
-  structured-output contract, and the ladder branches where the verifier
-  fails), the rungs do not. This was the largest call: with the time
-  available, a measured deterministic rung plus an honest report of its limit
-  is worth more than an unmeasured model path.
-- **OCR as an alternative rung-3 producer** — legitimate, and the verifier
-  would catch its digit confusions. Not built for the same reason.
+- **Rungs 1–4** — the profile cache, the model-derived layout profile, model
+  transcription, and the bounded repair agent. The seams exist
+  (`LayoutProfile` is already the structured-output contract, and the ladder
+  branches exactly where the verifier fails); the rungs do not. The reason is
+  measurement, not time: **no sample has needed one yet.** Building a model
+  path before the free path has failed would be paying for a capability with
+  no evidence it is required — and the evidence, when it arrives, is a
+  reconciliation failure naming the file and the residual.
+- **Multi-transaction rows** — the one gap the evidence *does* point at, and
+  the next thing to build. It is a change to the row model, not a rung.
 - **Transaction categorization, description normalization, batch processing,
   persistence** — not asked for.
 
