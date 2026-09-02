@@ -23,12 +23,12 @@ parsed transactions is computed **separately** and never merged into it.
 Reconciliation (SPEC §5) compares the two.
 
 When a statement prints no counts — the tuning file does exactly this — the
-count fields are derived from the transactions, checks D/E report
+count fields are derived from the transactions, the two count checks report
 `unavailable`, and the result records which fields were printed and which
 were derived (SPEC §7.8). Derived numbers are never presented as printed.
 
 When a statement prints no summary block at all, the summary is derived
-wholesale, all five checks are `unavailable`, and `reconciled` is `false`
+wholesale, all six checks are `unavailable`, and `reconciled` is `false`
 with reason `no_printed_summary` — not `true` for lack of evidence.
 
 ## Alternatives considered

@@ -72,8 +72,9 @@ truth for this shape. Nothing else may define or duplicate these fields.
    residuals. Per-period diagnoses stay in `periods[]` — the aggregate names
    no single cause, because it may have several.
 4. `summary.deposits_count == len([t for t in transactions if t.deposit])`
-   and likewise for withdrawals — **within a period**. This is check D/E
-   (§5) and it is an assertion, not a coincidence: when the statement prints
+   and likewise for withdrawals — **within a period**. This is the
+   `deposits_count` / `withdrawals_count` check (§5) and it is an assertion,
+   not a coincidence: when the statement prints
    counts they must agree, and when it does not (§7.8) the field is derived
    from the transactions and therefore holds by construction.
 5. Every `date` lies within `[period.start, period.end]`, or the transaction
@@ -116,26 +117,41 @@ it, and we climb only on rejection.
 ## 5. Reconciliation (normative)
 
 Two independently obtained views of the same period — the **printed summary
-block** and the **parsed transactions** — are compared. Five checks:
+block** and the **parsed transactions** — are compared. Six checks, named in
+the output rather than lettered:
 
-| id | check |
-|---|---|
-| A | `beginning + deposits_total − withdrawals_total == ending` (printed block, internally) |
-| B | `Σ parsed deposits == deposits_total` (printed) |
-| C | `Σ parsed withdrawals == withdrawals_total` (printed) |
-| D | `count parsed deposits == deposits_count` (printed) |
-| E | `count parsed withdrawals == withdrawals_count` (printed) |
+| id | check | what it evidences |
+|---|---|---|
+| `printed_block_closes` | `beginning + deposits_total − withdrawals_total == ending`, all printed | the block is internally consistent |
+| `balance_equation` | `beginning + Σparsed_deposits − Σparsed_withdrawals == ending` | **the parsed rows close the printed balances** |
+| `deposits_total` | `Σ parsed deposits == printed deposits_total` | the deposit rows are complete and correct |
+| `withdrawals_total` | `Σ parsed withdrawals == printed withdrawals_total` | likewise for withdrawals |
+| `deposits_count` | `count parsed deposits == printed deposits_count` | no deposit row lost or doubled |
+| `withdrawals_count` | `count parsed withdrawals == printed withdrawals_count` | likewise |
 
 Each check is **tri-state**: `ok`, `fail`, or `unavailable`. `unavailable`
 means the statement did not print the input the check needs (§7.8) — it is
-never reported as `ok`. A period is `reconciled` when no check is `fail` and
-at least A or (B and C) is `ok`; the set of checks that carried it is
-reported, so "reconciled" can never mean "we had nothing to check".
+never reported as `ok`. The checks that passed are reported, so "reconciled"
+can never mean "we had nothing to check".
+
+**A period is `reconciled` when no check is `fail` and either
+`balance_equation` is `ok`, or `deposits_total` and `withdrawals_total` are
+both `ok`.** Those are the two ways the parsed rows can be evidenced against
+the page. `printed_block_closes` is deliberately **not** sufficient on its
+own: it compares the block with itself and says nothing about whether the
+rows were read correctly — a period where it is the only `ok` check reports
+`no_transaction_evidence` and is not reconciled.
+
+Note the redundancy this creates on purpose: when the block prints totals,
+`balance_equation` follows arithmetically from the other checks and adds
+nothing. Its value is on the many statements that print only opening and
+closing balances, where it is the *only* check available against the rows.
 
 **Tolerance is exactly zero.** All money is `Decimal`; a one-cent residual is
 a failure, not a rounding artifact (§7.9).
 
 **Residual** = `beginning + Σparsed_deposits − Σparsed_withdrawals − ending`.
+It is `0.00` exactly when `balance_equation` is `ok`.
 
 ### 5.1 Residual diagnosis
 
@@ -161,8 +177,8 @@ out of scope (§1).
 |---|---|---|
 | 1 | Encrypted or unopenable PDF | raise `ExtractionError`; never return a half-filled result |
 | 2 | Scanned page, vision disabled or unavailable | period returned with `transactions: []`, summary if readable, `reconciliation` `fail`/`unavailable`, warning naming the pages |
-| 3 | Statement prints no transaction counts | checks D/E `unavailable`; counts derived from transactions (§7.8) |
-| 4 | Statement prints no summary block | checks A–E `unavailable`; summary derived from transactions; `reconciled: false` with reason `no_printed_summary` |
+| 3 | Statement prints no transaction counts | the two count checks `unavailable`; counts derived from transactions (§7.8) |
+| 4 | Statement prints no summary block | all six checks `unavailable`; summary derived from transactions; `reconciled: false` with reason `no_printed_summary` |
 | 5 | Several statements concatenated | one entry per period in `periods[]`, each reconciled separately |
 | 6 | Transaction table continues across a page break | rows joined without duplicating any; §7.10 detects duplication |
 | 7 | A row whose description wraps to a second line | joined into one transaction (§7.6) |
@@ -217,7 +233,8 @@ Everything a developer would otherwise decide silently in code.
 8. **Printed counts are frequently absent.** When a statement prints totals
    but no counts (the tuning file does exactly this), `deposits_count` /
    `withdrawals_count` are **derived from the parsed transactions**, checks
-   D/E report `unavailable`, and the result records which summary fields
+   `deposits_count` / `withdrawals_count` report `unavailable`, and the
+   result records which summary fields
    were printed vs derived. Derived numbers are never presented as printed.
 9. **Money is `Decimal`, parsed from strings, never `float`.** Accepted
    forms: `1,234.56`, `$1,234.56`, `-1,234.56`, `(1,234.56)`, `1,234.56-`,
@@ -294,7 +311,8 @@ summary fields for **exact** equality, prints a pass/fail table with residuals
 and cost, writes a JSON report, and exits non-zero on any failure.
 
 Done means: the tuning file passes fully (all summary fields exact, period
-reconciled, checks A–C `ok`); every other file either passes or returns a
+reconciled, the total checks `ok`); every other file either passes or
+returns a
 **named, quantified** failure — residual, failing checks, diagnosis, and the
 page it points at. An unexplained failure is not done; an explained one is a
 result.

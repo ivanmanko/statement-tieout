@@ -12,7 +12,7 @@ in the last cents. A reconciliation that "passes within a cent" would be
 indistinguishable from a parser that dropped a rounding-sized row.
 
 Separately: statements omit things. The tuning file prints totals but no
-transaction counts, so two of the five checks have no input.
+transaction counts, so two of the six checks have no input.
 
 ## Decision
 
