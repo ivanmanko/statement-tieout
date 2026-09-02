@@ -116,8 +116,8 @@ _MONEY_SHAPED = re.compile(r"[-(]?\$?\d[\d,]*\.\d{2}\)?-?")
 def _read_account(lines: Sequence[str]) -> Account:
     return Account(
         bank=_read_bank(lines),
-        account_last4=_read_last4(lines),
-        period=_read_period(lines),
+        account_last4=read_last4(lines),
+        period=read_period(lines),
     )
 
 
@@ -133,7 +133,8 @@ def _read_bank(lines: Sequence[str]) -> str | None:
     return None
 
 
-def _read_last4(lines: Sequence[str]) -> str | None:
+def read_last4(lines: Sequence[str]) -> str | None:
+    """The masked or labelled account tail (SPEC §7.15). Also a period anchor."""
     for line in lines:
         masked = _MASKED_ACCOUNT.search(line)
         if masked:
@@ -146,7 +147,8 @@ def _read_last4(lines: Sequence[str]) -> str | None:
     return None
 
 
-def _read_period(lines: Sequence[str]) -> DateRange:
+def read_period(lines: Sequence[str]) -> DateRange:
+    """The stated statement period (SPEC §7.15). Also a period anchor."""
     for line in lines:
         if not any(label in line.casefold() for label in PERIOD_LABELS):
             continue
