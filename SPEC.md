@@ -281,9 +281,15 @@ Everything a developer would otherwise decide silently in code.
 11. **Dates** are parsed with the profile's declared format. When a
     statement is ambiguous between `MM/DD` and `DD/MM`, the format that
     yields all dates inside the stated period wins; if both do, `MM/DD` is
-    assumed (US statements) and a warning is recorded. A transaction date
-    outside the period is kept and warned about, never dropped: dropping it
-    would break reconciliation silently.
+    assumed (US statements) and a warning is recorded. When the format
+    carries **no year** — common on transaction lines — the year comes from
+    the period, rolling back one year for a date that would otherwise fall
+    before `period.start` (so a December row in a mid-December-to-January
+    statement lands in the right year). With no period known, the row keeps
+    `strptime`'s default year and a warning is recorded: an obviously wrong
+    date is preferable to a plausible wrong one. A transaction date outside
+    the period is kept and warned about, never dropped: dropping it would
+    break reconciliation silently.
 12. **Description** is the text between the date and the first amount
     column, whitespace-normalized. A row whose next line has no date and no
     amount is a wrapped continuation and is appended to the previous
