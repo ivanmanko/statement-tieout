@@ -252,7 +252,10 @@ Everything a developer would otherwise decide silently in code.
    searched. This is what keeps a description like `LOCKBOX DEPOSITS` from
    being read as a total.
 
-   **Amount:** the last money-shaped token on the matching line.
+   **Amount:** the last money-shaped token on the matching line. A candidate
+   line that *begins* with a date is a transaction row, not a summary line,
+   and is skipped — otherwise a description such as `LOCKBOX DEPOSITS AND
+   CREDITS 8,193.03` would be read as a printed total.
 
    **Counts** are read only from a matching line carrying exactly one money
    token and exactly one bare integer (`Deposits and credits 81

@@ -8,21 +8,16 @@ check downstream is only meaningful if this stage is reproducible.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 from ..layout import Column, LayoutProfile, SideStrategy
+from ..layout.dates import MAX_DATE_WORDS, STAND_IN_YEAR, parse_date
 from ..money import parse_money
 from ..pdf.model import Page, Word
 from ..schema import DateRange, Transaction
 
 DEPOSIT, WITHDRAWAL = "deposit", "withdrawal"
-
-#: A leap year, so that a yearless "02/29" still parses.
-_STAND_IN_YEAR = 1904
-
-#: How many whitespace-separated words a date may span.
-_MAX_DATE_WORDS = 4
 
 
 @dataclass
@@ -153,25 +148,17 @@ class _State:
         prefix of it.
         """
         in_column = [w.text for w in line if self.profile.date_column.holds(w.center)]
-        for length in range(min(len(in_column), _MAX_DATE_WORDS), 0, -1):
+        for length in range(min(len(in_column), MAX_DATE_WORDS), 0, -1):
             when = self._parse_date(" ".join(in_column[:length]))
             if when is not None:
                 return when
         return None
 
     def _parse_date(self, text: str) -> date | None:
-        for fmt in self.profile.date_formats:
-            # A yearless format is parsed against a fixed leap year rather than
-            # strptime's default, which warns and cannot represent 29 February.
-            yearless = "%Y" not in fmt and "%y" not in fmt
-            candidate = f"{text} {_STAND_IN_YEAR}" if yearless else text
-            pattern = f"{fmt} %Y" if yearless else fmt
-            try:
-                parsed = datetime.strptime(candidate, pattern).date()
-            except ValueError:
-                continue
-            return self._infer_year(parsed) if yearless else parsed
-        return None
+        parsed = parse_date(text, self.profile.date_formats)
+        if parsed is None:
+            return None
+        return self._infer_year(parsed) if parsed.year == STAND_IN_YEAR else parsed
 
     def _infer_year(self, parsed: date) -> date:
         """SPEC §7.11: a yearless row takes its year from the period."""
