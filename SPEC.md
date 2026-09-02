@@ -407,6 +407,10 @@ parser tuned on all four files would score itself.
 
 ### 10.2 Definition of done
 
+The CLI exits **0** when every period reconciled, **1** when one did not
+(the result is still printed in full), and **2** when the file could not be
+read at all. A failure to reconcile is a result, not an error.
+
 `uv run python evals/run_evals.py` runs every file in `evals/expected/`,
 validates each result against `ExtractResult` and the §3 invariants, compares
 summary fields for **exact** equality, prints a pass/fail table with residuals
