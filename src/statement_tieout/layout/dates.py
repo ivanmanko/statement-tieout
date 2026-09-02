@@ -39,14 +39,19 @@ def parse_date(text: str, formats: Sequence[str] = DATE_FORMATS) -> date | None:
     A format carrying no year is parsed against `STAND_IN_YEAR` rather than
     strptime's default, which warns and cannot represent 29 February.
     """
-    for fmt in formats:
-        yearless = "%Y" not in fmt and "%y" not in fmt
-        candidate = f"{text} {STAND_IN_YEAR}" if yearless else text
-        pattern = f"{fmt} %Y" if yearless else fmt
-        try:
-            return datetime.strptime(candidate, pattern).date()
-        except ValueError:
-            continue
+    # Punctuation attaches to dates in the wild — `DECEMBER 31, 2024: LAST
+    # STATEMENT` — so a trailing colon or full stop is tried away as well.
+    for attempt in (text, text.rstrip(":;.")):
+        for fmt in formats:
+            yearless = "%Y" not in fmt and "%y" not in fmt
+            candidate = f"{attempt} {STAND_IN_YEAR}" if yearless else attempt
+            pattern = f"{fmt} %Y" if yearless else fmt
+            try:
+                return datetime.strptime(candidate, pattern).date()
+            except ValueError:
+                continue
+        if attempt == text.rstrip(":;."):
+            break
     return None
 
 

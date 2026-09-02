@@ -22,7 +22,14 @@ from ..layout.dates import find_dates, starts_with_date
 from ..money import ZERO, MoneyToken, find_money
 from ..pdf.model import Word
 from ..schema import Account, DateRange, Summary, Transaction
-from .labels import BEGINNING_LABELS, DEPOSIT_LABELS, ENDING_LABELS, WITHDRAWAL_LABELS
+from .labels import (
+    BEGINNING_LABELS,
+    CYCLE_END_LABEL,
+    CYCLE_START_LABEL,
+    DEPOSIT_LABELS,
+    ENDING_LABELS,
+    WITHDRAWAL_LABELS,
+)
 
 #: SPEC §7.5, from the one module that owns the vocabulary.
 LABELS: dict[str, tuple[str, ...]] = {
@@ -322,7 +329,22 @@ def read_period(lines: Sequence[RawLine]) -> DateRange:
             return DateRange(start=dates[0], end=dates[-1])
         if dates:
             return DateRange(end=dates[0])
-    return DateRange()
+    return _cycle_pair(_as_lines(lines))
+
+
+def _cycle_pair(lines: Sequence[_Line]) -> DateRange:
+    """`... : LAST STATEMENT` over `... : THIS STATEMENT` (SPEC §7.15)."""
+    start = end = None
+    for line in lines:
+        lowered = line.text.casefold()
+        dates = find_dates(line.text)
+        if not dates:
+            continue
+        if start is None and CYCLE_START_LABEL in lowered:
+            start = dates[0]
+        elif end is None and CYCLE_END_LABEL in lowered:
+            end = dates[0]
+    return DateRange(start=start, end=end)
 
 
 # ---------------------------------------------------------------------------- assembly

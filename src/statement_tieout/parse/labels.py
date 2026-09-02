@@ -13,4 +13,10 @@ ENDING_LABELS = ("ending statement balance", "ending balance", "new balance",
 DEPOSIT_LABELS = ("total deposits/credits", "deposits and credits", "deposits/credits",
                   "total deposits", "deposits", "credits", "additions")
 WITHDRAWAL_LABELS = ("total checks/debits", "withdrawals and debits", "checks/debits",
-                     "total withdrawals", "withdrawals", "debits", "subtractions")
+                     "total withdrawals", "withdrawals", "debits", "subtractions",
+                     "other debits", "checks")
+
+#: Statements that state their cycle as a pair of lines rather than a range
+#: (SPEC §7.15): the last statement's date opens this period, this one's closes it.
+CYCLE_START_LABEL = "last statement"
+CYCLE_END_LABEL = "this statement"

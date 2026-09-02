@@ -352,7 +352,9 @@ Everything a developer would otherwise decide silently in code.
     balance column is present: `balance[i−1] ± amount[i] == balance[i]`. A
     break localizes the error to row *i*. It is a verifier, not a parser —
     a statement without the column loses this check and nothing else.
-11. **Dates** are parsed with the profile's declared format. When a
+11. **Dates** are parsed with the profile's declared format, with a trailing
+    `:`, `;` or `.` tried away as well — punctuation attaches to dates in
+    the wild (`DECEMBER 31, 2024: LAST STATEMENT`). When a
     statement is ambiguous between `MM/DD` and `DD/MM`, the format that
     yields all dates inside the stated period wins; if both do, `MM/DD` is
     assumed (US statements) and a warning is recorded. When the format
