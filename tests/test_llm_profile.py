@@ -12,8 +12,6 @@ else.
 import json
 from dataclasses import dataclass, field
 
-import pytest
-
 from statement_tieout.layout import SideStrategy
 from statement_tieout.layout.llm import MAX_SAMPLE_PAGES, profile_from_pages
 from statement_tieout.llm.client import Completion
@@ -76,8 +74,10 @@ class TestWhatTheModelIsShown:
         assert "x0=" in prompt
 
     def test_at_most_two_pages_are_sampled(self):
-        pages = [rows_page(("01/0%d/2025" % (i + 1), "A", "1.00", "2.00"), top=100.0)
-                 for i in range(6)]
+        pages = [
+            rows_page((f"01/0{i + 1}/2025", "A", "1.00", "2.00"), top=100.0)
+            for i in range(6)
+        ]
         client = StubClient([VALID_PROFILE])
         profile_from_pages(pages, client)
         prompt = client.calls[0]["user"]

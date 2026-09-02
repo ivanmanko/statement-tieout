@@ -32,18 +32,30 @@ class StubClient:
 
 
 def reconciling_page():
-    """A statement the deterministic rung reads on its own."""
+    """A statement the deterministic rung reads on its own.
+
+    Six rows so that both amount columns clear the alignment rule, and an
+    unbroken running balance so the balance column is recognised as one.
+    """
     header = line(60.0, (DESC_X, "ACME BANK"))
     totals = [
         line(72.0, (DESC_X, "Beginning balance"), (LEFT_X, "1,000.00")),
-        line(84.0, (DESC_X, "Total deposits"), (LEFT_X, "300.00")),
-        line(96.0, (DESC_X, "Total withdrawals"), (LEFT_X, "50.00")),
-        line(108.0, (DESC_X, "Ending balance"), (LEFT_X, "1,250.00")),
+        line(84.0, (DESC_X, "Total deposits"), (LEFT_X, "600.00")),
+        line(96.0, (DESC_X, "Total withdrawals"), (LEFT_X, "180.00")),
+        line(108.0, (DESC_X, "Ending balance"), (LEFT_X, "1,420.00")),
+    ]
+    ledger = [
+        ("IN A", "100.00", None, "1,100.00"),
+        ("IN B", "200.00", None, "1,300.00"),
+        ("OUT C", None, "50.00", "1,250.00"),
+        ("IN D", "300.00", None, "1,550.00"),
+        ("OUT E", None, "60.00", "1,490.00"),
+        ("OUT F", None, "70.00", "1,420.00"),
     ]
     rows = [
-        two_column_row(140.0, "01/01/2025", "IN A", deposit="100.00", balance="1,100.00"),
-        two_column_row(152.0, "01/02/2025", "IN B", deposit="200.00", balance="1,300.00"),
-        two_column_row(164.0, "01/03/2025", "OUT C", withdrawal="50.00", balance="1,250.00"),
+        two_column_row(140.0 + i * 12.0, f"01/0{i + 1}/2025", description,
+                       deposit=deposit, withdrawal=withdrawal, balance=balance)
+        for i, (description, deposit, withdrawal, balance) in enumerate(ledger)
     ]
     return page(header, *totals, *rows)
 

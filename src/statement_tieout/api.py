@@ -12,10 +12,14 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from .layout.dates import starts_with_date
 from .layout.heuristic import derive_profile
+from .layout.llm import profile_from_pages
+from .layout.profile import LayoutProfile
+from .llm.client import LLMClient, Usage, build_client
 from .money import find_money, format_money
 from .parse.header import HeaderReading, build_summary, read_header
 from .parse.rows import ParsedRows, parse_rows
@@ -23,11 +27,11 @@ from .parse.segment import segment
 from .pdf.loader import is_scanned, load_pages
 from .pdf.model import Page, Word
 from .reconcile import diagnose, reconcile
-from .schema import Extraction, ExtractResult, PeriodResult, Reconciliation
+from .schema import Extraction, ExtractResult, PeriodResult, Reconciliation, Summary
 
 logger = logging.getLogger("statement_tieout")
 
-__all__ = ["extract", "extract_result"]
+__all__ = ["extract", "extract_period", "extract_result"]
 
 
 def extract(pdf_path: str) -> dict:
@@ -35,9 +39,15 @@ def extract(pdf_path: str) -> dict:
     return extract_result(pdf_path).model_dump(mode="json")
 
 
-def extract_result(pdf_path: str) -> ExtractResult:
-    """As `extract`, but typed — used by the CLI and the eval harness."""
+def extract_result(pdf_path: str, *, client: LLMClient | None = None) -> ExtractResult:
+    """As `extract`, but typed — used by the CLI and the eval harness.
+
+    `client` is injected by tests; in normal use it comes from the
+    environment and is None when nothing is configured, which is the
+    supported case rather than an error.
+    """
     started = time.monotonic()
+    client = client if client is not None else build_client()
     pages = load_pages(pdf_path)
 
     warnings: list[str] = []
@@ -54,14 +64,20 @@ def extract_result(pdf_path: str) -> ExtractResult:
             f"{len(unread)} page(s) yielded nothing at all, not even by OCR (pages {unread[:10]})"
         )
 
-    periods = []
+    periods, spend = [], Usage()
     for group in segment(pages):
-        period, period_warnings = _period(group)
+        period, period_warnings, period_usage = extract_period(group, client)
         periods.append(period)
         warnings.extend(period_warnings)
+        spend.calls += period_usage.calls
+        spend.prompt_tokens += period_usage.prompt_tokens
+        spend.completion_tokens += period_usage.completion_tokens
+        spend.cost_usd += period_usage.cost_usd
 
     extraction = Extraction(
-        path="deterministic",
+        path="llm_profile" if spend.calls else "deterministic",
+        llm_calls=spend.calls,
+        cost_usd=round(spend.cost_usd, 6),
         latency_s=round(time.monotonic() - started, 3),
         warnings=warnings,
     )
@@ -70,15 +86,60 @@ def extract_result(pdf_path: str) -> ExtractResult:
     return result
 
 
-def _period(pages: list[Page]) -> tuple[PeriodResult, list[str]]:
-    """Parse and reconcile one statement period."""
+def extract_period(
+    pages: list[Page], client: LLMClient | None = None
+) -> tuple[PeriodResult, list[str], Usage]:
+    """Parse and reconcile one statement period, climbing the ladder if needed.
+
+    The escalation rule in one place: the model is asked only after the free
+    verifier has refused the free answer, and its answer is kept only if it
+    reconciles. A profile that makes things worse is discarded, so a model
+    can never turn an honest failure into a confident wrong result.
+    """
     lines = [line for page in pages for line in page.lines()]
     header_lines, body_lines = _split_at_first_row(lines)
     reading = read_header(header_lines, body_lines)
 
     profile = derive_profile(pages)
+    attempt = _attempt(pages, profile, reading)
+    usage = Usage()
+
+    if not attempt.reconciliation.reconciled and client is not None:
+        better, usage = _escalate(pages, reading, attempt, client)
+        attempt = better
+
+    warnings = list(attempt.warnings)
+    if profile is None and not usage.calls:
+        warnings.append("no layout profile could be derived from these pages")
+
+    return (
+        PeriodResult(
+            account=reading.account,
+            summary=attempt.summary,
+            transactions=attempt.parsed.transactions,
+            reconciliation=attempt.reconciliation,
+        ),
+        warnings,
+        usage,
+    )
+
+
+@dataclass
+class _Attempt:
+    """One profile's worth of parsed rows, and what the verifier made of them."""
+
+    parsed: ParsedRows
+    summary: Summary
+    reconciliation: Reconciliation
+
+    @property
+    def warnings(self) -> list[str]:
+        return self.parsed.warnings
+
+
+def _attempt(pages: list[Page], profile: LayoutProfile | None, reading) -> _Attempt:
     if profile is None:
-        parsed = ParsedRows(warnings=["no layout profile could be derived from these pages"])
+        parsed = ParsedRows()
     else:
         parsed = parse_rows(
             pages,
@@ -86,20 +147,24 @@ def _period(pages: list[Page]) -> tuple[PeriodResult, list[str]]:
             period=reading.account.period,
             opening_balance=reading.beginning_balance,
         )
-
     summary = build_summary(reading, parsed.transactions)
-    result = reconcile(summary, parsed.transactions)
-    result = _explain(result, reading, parsed, pages)
+    result = _explain(reconcile(summary, parsed.transactions), reading, parsed, pages)
+    return _Attempt(parsed=parsed, summary=summary, reconciliation=result)
 
-    return (
-        PeriodResult(
-            account=reading.account,
-            summary=summary,
-            transactions=parsed.transactions,
-            reconciliation=result,
-        ),
-        parsed.warnings,
+
+def _escalate(
+    pages: list[Page], reading, attempt: _Attempt, client: LLMClient
+) -> tuple[_Attempt, Usage]:
+    """Rung 2: ask the model for a layout, and keep it only if it reconciles."""
+    feedback = attempt.reconciliation.detail or (
+        f"the rows did not reconcile; residual {attempt.reconciliation.residual}"
     )
+    profile, usage = profile_from_pages(pages, client, feedback=feedback)
+    if profile is None:
+        return attempt, usage
+
+    candidate = _attempt(pages, profile, reading)
+    return (candidate if candidate.reconciliation.reconciled else attempt), usage
 
 
 def _explain(
