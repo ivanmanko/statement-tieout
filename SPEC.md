@@ -155,21 +155,51 @@ It is `0.00` exactly when `balance_equation` is `ok`.
 
 ### 5.1 Residual diagnosis
 
-The residual is an address, not just a verdict. Declared signatures, applied
-in order; the first match wins:
+The residual is an address, not just a verdict. Writing `r` for the residual
+and `Δdep` / `Δwd` for parsed count minus printed count, the arithmetic of a
+single-row error is forced:
 
-| signature | diagnosis |
-|---|---|
-| a parsed row amount equals `abs(residual)` and counts are short by 1 | `dropped_row` — that amount was not parsed; the raw page text is searched for it and the page reported |
-| counts exceed printed by 1 and residual equals `−amount` of a duplicated adjacent pair | `duplicated_row` |
-| counts agree and `residual == 2 × amount` of some row | `side_flip` — one row landed on the wrong side |
-| counts short by N, residual is 0 | `zero_amount_rows` — benign |
-| a running-balance column exists and its chain breaks at row *i* (§7.10) | `row_level_break` — reported with the row index and page |
-| none of the above | `unknown` |
+| what went wrong | Δdep | Δwd | residual |
+|---|---|---|---|
+| a deposit of `X` was not parsed | −1 | 0 | `−X` |
+| a withdrawal of `X` was not parsed | 0 | −1 | `+X` |
+| a deposit of `X` was parsed twice | +1 | 0 | `+X` |
+| a withdrawal of `X` was parsed twice | 0 | +1 | `−X` |
+| a deposit of `X` landed on the withdrawal side | −1 | +1 | `−2X` |
+| a withdrawal of `X` landed on the deposit side | +1 | −1 | `+2X` |
 
-A diagnosis is **reported, never auto-applied**, in this delivery. The
-repair path (rung 4) is where a diagnosis would become an edit, and it is
-out of scope (§1).
+So when counts are printed, one failing row is **identified**, not guessed:
+its side, its amount, and what happened to it all follow from two integers
+and one Decimal.
+
+Signatures are applied in this order; the first match wins:
+
+1. `r == 0` and counts are short — `zero_amount_rows`; rows with no amount
+   were skipped. Benign.
+2. A running-balance column is present and its chain first breaks at row *i*
+   (§7.10) — `row_level_break`, reported with *i* and its page. This
+   outranks the count arithmetic because it localizes to a row rather than
+   to a period.
+3. The count deltas match a row of the table above — `dropped_row`,
+   `duplicated_row` or `side_flip`, with the exact amount. For
+   `dropped_row`, the amount is additionally searched for in the raw page
+   text and the page reported when found.
+4. Counts are `unavailable` (§7.8), so only `r` is known. Then, in order:
+   `abs(r) == 2 × amount` of some parsed row — `side_flip` *candidate*, that
+   row named; `abs(r) ==` the amount of some parsed row — ambiguous between
+   `duplicated_row` and a dropped row of equal value, reported as
+   `amount_matches_row` with the row named; `abs(r)` occurs as a money token
+   in the raw page text but among no parsed row — `dropped_row` candidate
+   with the page.
+5. Otherwise `unknown`, and the residual is reported bare. More than one row
+   is wrong, and separating them is what the repair rung (§4 rung 4) exists
+   for.
+
+A diagnosis is **reported, never auto-applied**, in this delivery. Turning a
+diagnosis into an edit is rung 4, which is out of scope (§1). The distinction
+matters: a wrong diagnosis that is only printed costs a reviewer a minute,
+while a wrong diagnosis that silently rewrites a transaction is a corrupted
+result that still reconciles.
 
 ## 6. Edge cases (normative)
 
