@@ -1,0 +1,42 @@
+"""Synthetic pages of words-with-coordinates, shared by the parsing tests.
+
+Parsing is tested on fixtures rather than on sample PDFs on purpose: the
+parser has to be correct for layouts we do not have, and a test that needs a
+real file can only ever check the ones we do.
+"""
+
+from statement_tieout.pdf.model import Page, Word
+
+DATE_X, DESC_X, LEFT_X, RIGHT_X, BALANCE_X = 30.0, 90.0, 330.0, 410.0, 490.0
+CHAR_WIDTH = 6.0
+
+
+def word(text: str, x0: float, top: float) -> Word:
+    return Word(text=text, x0=x0, x1=x0 + len(text) * CHAR_WIDTH, top=top)
+
+
+def line(top: float, *cells: tuple[float, str]) -> list[Word]:
+    """Lay out one visual line: each cell is (x0, text); text is split on spaces."""
+    words = []
+    for x0, text in cells:
+        x = x0
+        for token in text.split():
+            words.append(word(token, x, top))
+            x += len(token) * CHAR_WIDTH + 4.0
+    return words
+
+
+def page(*lines: list[Word], number: int = 1) -> Page:
+    words = [w for group in lines for w in group]
+    return Page(number=number, words=words, text=" ".join(w.text for w in words))
+
+
+def rows_page(*specs: tuple[str, str, str, str | None], top: float = 100.0) -> Page:
+    """A page of transaction rows: (date, description, amount, balance-or-None)."""
+    lines = []
+    for index, (when, description, amount, balance) in enumerate(specs):
+        cells = [(DATE_X, when), (DESC_X, description), (LEFT_X, amount)]
+        if balance is not None:
+            cells.append((BALANCE_X, balance))
+        lines.append(line(top + index * 12.0, *cells))
+    return page(*lines)

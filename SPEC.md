@@ -234,7 +234,8 @@ Everything a developer would otherwise decide silently in code.
 4. **`LayoutProfile`** is the only thing that varies between statements. It
    declares: the x-ranges of the date, description, amount(s) and balance
    columns; the date format; which **side strategy** applies (§7.6); and the
-   summary-block labels found (§7.5). It is data, never code.
+   summary-block labels found (§7.5). It is data, never code. How rung 0
+   derives one without a model is §7.17.
 5. **Summary block labels** are matched by normalized substring against a
    declared vocabulary — beginning: `beginning balance`, `previous balance`,
    `opening balance`, `balance forward`; ending: `ending balance`,
@@ -337,6 +338,33 @@ Everything a developer would otherwise decide silently in code.
 16. **Provider is an installation parameter.** `LLM_PROVIDER` selects
     `anthropic` (default) / `bedrock` / `vertex` / `foundry`; all four expose
     the same `messages.create`. No code path depends on which is chosen.
+
+17. **Heuristic profile derivation (rung 0)**, from word coordinates alone:
+    1. **Candidate rows** are lines whose leading words parse as a date under
+       any candidate format (§7.15, plus the yearless formats of §7.11) and
+       that carry at least one money token. Fewer than
+       `min_candidate_rows = 3` of them means no profile: rung 0 declines
+       rather than guessing, and the ladder escalates.
+    2. **Date format and column:** the candidate format parsing the most
+       leading tokens wins; the column spans those tokens' extent.
+    3. **Money columns:** the horizontal midpoints of all money tokens on
+       candidate rows are sorted and split wherever the gap exceeds
+       `column_gap = 20.0` points. A cluster appearing on fewer than
+       `min_column_share = 25%` of candidate rows is discarded as an amount
+       embedded in a description.
+    4. **Balance column:** the rightmost surviving cluster, *if* it behaves
+       like a running balance — `b[i] − b[i−1]` equals ± the row's amount on
+       a majority of consecutive rows. Otherwise there is no balance column
+       and the cluster is treated as an amount. This is a measurement, not
+       an assumption about where banks put things.
+    5. **Amount columns:** the remaining clusters, rightmost two if more
+       survive.
+    6. **Side strategy**, in the §7.6 priority order: two amount columns →
+       `two_columns`; any negative or `CR`/`DR`-marked amount → `signed`;
+       at least two section headings recognised → `sections`; a balance
+       column → `balance_delta`; none of these → no profile, escalate.
+       A **section heading** is a line with no date and no money whose text
+       matches the §7.5 deposit or withdrawal label vocabulary.
 
 ## 8. Observability
 

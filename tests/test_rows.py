@@ -12,31 +12,11 @@ import pytest
 
 from statement_tieout.layout import Column, LayoutProfile, SideStrategy
 from statement_tieout.parse.rows import parse_rows
-from statement_tieout.pdf.model import Page, Word
 from statement_tieout.schema import DateRange
 
-DATE_X, DESC_X, LEFT_X, RIGHT_X, BALANCE_X = 30.0, 90.0, 330.0, 410.0, 490.0
+from .helpers import BALANCE_X, DATE_X, DESC_X, LEFT_X, RIGHT_X, line, page
+
 BALANCE_COLUMN = Column(x0=480.0, x1=560.0)
-
-
-def word(text: str, x0: float, top: float) -> Word:
-    return Word(text=text, x0=x0, x1=x0 + len(text) * 6.0, top=top)
-
-
-def line(top: float, *cells: tuple[float, str]) -> list[Word]:
-    """Lay out one visual line: each cell is (x0, text); text is split on spaces."""
-    words = []
-    for x0, text in cells:
-        x = x0
-        for token in text.split():
-            words.append(word(token, x, top))
-            x += len(token) * 6.0 + 4.0
-    return words
-
-
-def page(*lines: list[Word], number: int = 1) -> Page:
-    words = [w for group in lines for w in group]
-    return Page(number=number, words=words, text=" ".join(w.text for w in words))
 
 
 def profile(
