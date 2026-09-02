@@ -238,12 +238,28 @@ Everything a developer would otherwise decide silently in code.
 5. **Summary block labels** are matched by normalized substring against a
    declared vocabulary — beginning: `beginning balance`, `previous balance`,
    `opening balance`, `balance forward`; ending: `ending balance`,
-   `new balance`, `closing balance`; deposits: `deposits`, `credits`,
-   `deposits and credits`, `total deposits`, `additions`; withdrawals:
-   `withdrawals`, `debits`, `withdrawals and debits`, `total withdrawals`,
-   `subtractions`. The amount taken is the last money-shaped token on the
-   matching line. The vocabulary lives in one module constant and this
-   section mirrors it; extending it requires editing both in one commit.
+   `new balance`, `closing balance`; deposits: `deposits and credits`,
+   `total deposits`, `deposits`, `credits`, `additions`; withdrawals:
+   `withdrawals and debits`, `total withdrawals`, `withdrawals`, `debits`,
+   `subtractions`. Longer labels are tried first, so `deposits and credits`
+   is not consumed by `deposits`. The vocabulary lives in one module
+   constant and this section mirrors it; extending it requires editing both
+   in one commit.
+
+   **Scope:** the block is searched in the lines *preceding* the period's
+   first transaction row, which is where every statement seen so far prints
+   it; only if a label is not found there is the rest of the period
+   searched. This is what keeps a description like `LOCKBOX DEPOSITS` from
+   being read as a total.
+
+   **Amount:** the last money-shaped token on the matching line.
+
+   **Counts** are read only from a matching line carrying exactly one money
+   token and exactly one bare integer (`Deposits and credits 81
+   $1,214,254.05`); anything less clear-cut leaves the count `unavailable`
+   rather than guessed. A wrong count would make the reconciliation lie in
+   the one direction that matters — reporting a failure where the rows are
+   in fact complete.
 6. **Side strategy** — how a row becomes a deposit or a withdrawal. The
    profile picks exactly one, in this priority:
    1. `two_columns` — two distinct amount x-ranges: left/right decides;
@@ -305,7 +321,17 @@ Everything a developer would otherwise decide silently in code.
     with a warning. Default model `claude-opus-5`, `temperature` unset,
     structured output enforced server-side by re-validating against the
     `LayoutProfile` schema.
-15. **Provider is an installation parameter.** `LLM_PROVIDER` selects
+15. **Account identity** is read from the first page of the period:
+    - **bank** — the first line carrying no money token and no run of four or
+      more digits, i.e. the letterhead. A statement whose letterhead is an
+      image yields `null`, not a guess.
+    - **account_last4** — the last run of exactly four digits on a line
+      containing `account`, or the trailing four digits of a masked token
+      (`****4071`, `xxxx4071`, `x4071`) anywhere on the page.
+    - **period start/end** — the two dates on a line containing
+      `statement period`, `statement date`, `for the period` or
+      `period covered`. One date alone fills `end` and leaves `start` null.
+16. **Provider is an installation parameter.** `LLM_PROVIDER` selects
     `anthropic` (default) / `bedrock` / `vertex` / `foundry`; all four expose
     the same `messages.create`. No code path depends on which is chosen.
 
