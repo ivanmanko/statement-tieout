@@ -225,12 +225,18 @@ Everything a developer would otherwise decide silently in code.
 2. **Text layer vs scan:** a page is *scanned* when it yields fewer than
    `min_chars_per_text_page = 20` characters. A document is scanned when
    more than half its pages are.
-3. **Period anchors**, matched case-insensitively, in priority order:
-   a line matching `beginning|previous balance`; a change in the account
-   number found on the page; a `statement period` / `statement date` line
-   whose parsed dates differ from the current period's. A new period starts
-   at the page where an anchor fires. A file with no anchor is one period
-   spanning all pages.
+3. **Period anchors**, matched case-insensitively: a line carrying a
+   beginning-balance label (§7.5); a change in the account number found on
+   the page (§7.15); a `statement period` / `statement date` line whose
+   dates differ from the current period's. A new period starts at the page
+   where an anchor fires; a file with no anchor is one period spanning all
+   pages.
+
+   **Boilerplate guard:** an anchor appearing on *every* page is a running
+   header or footer, not a period marker, and is ignored — otherwise a
+   statement repeating "Previous balance" in its page footer would be split
+   into one period per page. An anchor that fires on every page but one is
+   still an anchor.
 4. **`LayoutProfile`** is the only thing that varies between statements. It
    declares: the x-ranges of the date, description, amount(s) and balance
    columns; the date format; which **side strategy** applies (§7.6); and the
