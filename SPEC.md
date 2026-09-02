@@ -225,6 +225,32 @@ Everything a developer would otherwise decide silently in code.
 2. **Text layer vs scan:** a page is *scanned* when it yields fewer than
    `min_chars_per_text_page = 20` characters. A document is scanned when
    more than half its pages are.
+
+   **Ingest has two backends, and a scan uses the second one.** A scanned
+   page is rendered at `ocr_scale = 3.0` and read by a local OCR engine
+   (ONNX, no system dependency, no network), which returns text with
+   bounding boxes — the same words-with-coordinates the text-layer backend
+   produces. Everything downstream is then identical: the same profile
+   derivation, the same parser, the same reconciliation. OCR is **not** a
+   rung of the ladder; it is a way of obtaining pixels' worth of words, and
+   its inevitable digit errors are caught by the same free verifier that
+   catches everything else. Each page records which backend produced it.
+
+   **OCR returns line segments, not words**, and drops spaces
+   (`03/31ENDINGBALANCEFROMPRIORSTATEMENT`). A segment is split at
+   whitespace, at digit↔letter boundaries and at lowercase→uppercase
+   boundaries, and its bounding box is divided among the tokens in
+   proportion to their character counts. The positions are approximate;
+   they only have to be good enough to assign a token to a column, and
+   columns are far apart. Money tokens are never split, because they
+   contain no letters and no case transitions. A segment whose confidence
+   is below `min_ocr_confidence = 0.5` is dropped and counted in a warning.
+
+   **Consequence, recorded rather than hidden:** an all-capitals
+   description with its spaces lost stays one token, so descriptions from a
+   scan are less faithful than descriptions from a text layer. Amounts,
+   dates and balances are unaffected, and those are what reconciliation and
+   the graded summary depend on.
 3. **Period anchors**, matched case-insensitively: a line carrying a
    beginning-balance label (§7.5); a change in the account number found on
    the page (§7.15); a `statement period` / `statement date` line whose
