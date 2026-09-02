@@ -26,8 +26,15 @@ accepts or rejects it; we climb only on rejection.
 | 0 | heuristic layout profile from word coordinates | $0 |
 | 1 | cached profile for a known template fingerprint | $0 |
 | 2 | LLM profiles the layout from 1–2 **sample pages** | ~1 call / statement |
-| 3 | vision transcription, one page per call (scans only) | N calls |
+| 3 | model transcription of pages OCR reads poorly | N calls |
 | 4 | agentic repair of a period that still will not close | bounded |
+
+> **Amended by [ADR-005](005-ocr-is-ingest-not-a-rung.md).** Rung 3 was
+> originally "vision transcription (scans only)". Reading a scan turned out
+> to belong in *ingest*, not on the ladder: OCR produces the same
+> words-with-coordinates the text layer does, so every rung above applies to
+> scans unchanged. Rung 3 is now the narrower job of transcribing pages OCR
+> reads too poorly.
 
 Two properties make this more than a fallback chain. Rungs 0–1 are free, so a
 statement the heuristics handle costs literally nothing — not "cheap", zero.

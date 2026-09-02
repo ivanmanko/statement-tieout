@@ -1,7 +1,20 @@
 {
   "provenance": {
-    "summary": "none — all four pages are scanned images with no text layer, so no ground truth could be read without transcription"
+    "summary": "read by eye from a rendering of page 1",
+    "transactions_count": "counted by eye from the rendering: 2 under CHECKS, 3 under OTHER DEBITS, 5 under CREDITS"
   },
-  "no_ground_truth": true,
-  "notes": "Held out (SPEC §10.1). Recorded so the harness reports what the extractor does with a pure scan rather than quietly skipping it. Expected behavior: zero transactions, every check `unavailable`, warnings naming the scanned pages. Filling this in requires rung 3, which is out of scope for this delivery."
+  "account": {
+    "bank": "RENASANT BANK",
+    "account_last4": "6426",
+    "period": { "start": "2024-12-31", "end": "2025-01-31" }
+  },
+  "summary": {
+    "beginning_balance": -10.00,
+    "ending_balance": -10.00,
+    "deposits_total": 32537.69,
+    "withdrawals_total": 32537.69
+  },
+  "periods": 1,
+  "transactions_count": 10,
+  "notes": "Held out from tuning (SPEC §10.1). Four scanned pages, read by OCR. The hardest of the samples: sections rather than columns (CHECKS / OTHER DEBITS / CREDITS), yearless MM-DD dates, and a CHECKS section that prints TWO transactions per line (NUMBER DATE AMOUNT NUMBER DATE AMOUNT). The row model reads one transaction per line, so those are missed — recorded here as a real gap rather than smoothed over."
 }
