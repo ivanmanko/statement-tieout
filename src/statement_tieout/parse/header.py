@@ -41,11 +41,19 @@ PERIOD_LABELS = ("statement period", "statement date", "for the period", "period
 LETTERHEAD_LINES = 15
 """How far down the page a letterhead may be (SPEC §7.15)."""
 
+LETTERHEAD_SIZE_RATIO = 0.85
+"""Words this close to the largest on the page belong to the letterhead with it."""
+
 MIN_LABELS_IN_A_ROW = 2
 """A horizontal label row carries several labels; one is a stray word."""
 
-# The mask must not follow a letter, or `P.O.Box 4887` reads as an account.
-_MASKED_ACCOUNT = re.compile(r"(?<![A-Za-z])[*xX×][\s*xX×]*(\d{4})(?!\d)")
+# Two guards, both from real pages: a mask never follows a letter (`P.O.Box 4887`
+# ends in `x`), and a lone mask character must touch the digits — OCR of that same
+# line elsewhere reads `P.O.B 0 x 4887`.
+_MASKED_ACCOUNT = re.compile(
+    r"(?<![A-Za-z0-9])(?:[*xX×]\s*){2,}(\d{4})(?!\d)"
+    r"|(?<![A-Za-z0-9])[*xX×](\d{4})(?!\d)"
+)
 _FOUR_DIGITS = re.compile(r"\b(\d{4})\b")
 _BARE_INTEGER = re.compile(r"\b\d{1,3}\b")
 _LONG_DIGITS = re.compile(r"\d{4,}")
@@ -258,14 +266,26 @@ def _read_account(lines: Sequence[_Line]) -> Account:
 
 
 def _read_bank(lines: Sequence[_Line]) -> str | None:
-    """The letterhead: the largest text that is not a labelled field (SPEC §7.15)."""
+    """The letterhead: the words set in the largest type (SPEC §7.15).
+
+    Word, not line: a logo is set larger than the address printed beside it,
+    so taking the whole line returns the address too.
+    """
     candidates = [line for line in lines[:LETTERHEAD_LINES] if _could_be_a_letterhead(line)]
     if not candidates:
         return None
-    sized = [line for line in candidates if any(word.height for word in line.words)]
-    if sized:
-        return max(sized, key=lambda line: median(w.height for w in line.words)).text.strip()
-    # No text sizes to compare (a caller passing plain strings): fall back to the
+
+    tallest = max(
+        (word for line in candidates for word in line.words),
+        key=lambda word: word.height,
+        default=None,
+    )
+    if tallest is not None and tallest.height > 0:
+        home = next(line for line in candidates if tallest in line.words)
+        floor = tallest.height * LETTERHEAD_SIZE_RATIO
+        return " ".join(word.text for word in home.words if word.height >= floor)
+
+    # No size information (a caller passing plain strings): fall back to the
     # older rule, which prefers a line carrying no long run of digits.
     plain = [line for line in candidates if not _LONG_DIGITS.search(line.text)]
     return (plain or candidates)[0].text.strip()
@@ -284,7 +304,7 @@ def read_last4(lines: Sequence[RawLine]) -> str | None:
     for line in resolved:
         masked = _MASKED_ACCOUNT.search(line.text)
         if masked:
-            return masked.group(1)
+            return masked.group(1) or masked.group(2)
     for line in resolved:
         if "account" in line.text.casefold():
             digits = _FOUR_DIGITS.findall(line.text)
