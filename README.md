@@ -15,9 +15,10 @@ what went wrong along the way is in [docs/ai/AI_NOTES.md](docs/ai/AI_NOTES.md).
 
 | | |
 |---|---|
-| Tests | 335 unit tests — no LLM, no network, no sample PDF required |
+| Tests | 370 unit tests — no LLM, no network, no sample PDF required |
 | Accuracy | measured by `evals/run_evals.py`, table below |
 | Cost | **$0.00 and zero API calls** on every sample, scans included |
+| Interface | one page — upload a statement, get the workpaper (below) |
 
 ## The idea
 
@@ -151,6 +152,15 @@ period 1: reconciled
 rung: deterministic · 0 LLM call(s) · $0.0000 · 0.421s
 ```
 
+The interface — upload a statement, read the workpaper on the same page:
+
+```bash
+uv run uvicorn statement_tieout.web.app:app --port 8000
+```
+
+Then open http://localhost:8000. Uploads are held in memory for the request
+and never written to disk: statements are client data.
+
 Tests, lint and the accuracy harness:
 
 ```bash
@@ -159,6 +169,51 @@ uv run pytest && uv run ruff check . && uv run python evals/run_evals.py
 
 Statement PDFs are **not committed** (`samples/` is gitignored). Put the
 assignment's files there before running the harness.
+
+## The buyer is an audit firm, so the product is a workpaper
+
+An auditor does not buy extracted rows. They perform a bank reconciliation and
+must leave behind something that survives review. The reconciliation this
+project already computes **is** that workpaper; what was missing was a way to
+hand it to a person, and two properties a workpaper cannot do without.
+
+That is why the HTTP interface, cut early as "really optional" in the
+assignment's own words, came back (SPEC §1). It presents `ExtractResult` and
+computes nothing of its own.
+
+**Three questions, in the auditor's order** (SPEC §8):
+
+**"May I sample from this population?"** Nothing can be sampled from a list
+that might be incomplete by an unknown amount. Where the statement prints
+transaction counts, the shortfall is exact — 81 printed against 79 found is
+two rows and a known sum. Where it does not, the report says the population is
+**unbounded** rather than implying it is whole. Great Lakes reconciles to the
+cent and still comes back `tied_with_notes` for exactly this reason.
+
+**"Where did this figure come from?"** Every transaction carries the page and
+line index it was read from; every summary field records whether it was
+printed or derived. A figure that cannot be traced to evidence cannot be
+relied on, however correct it happens to be.
+
+**"Whose exception is this?"** This system sees only the statement, never the
+client's ledger, so it cannot produce a bank-versus-book difference. A residual
+is therefore one of three things, and they are never conflated:
+
+| | meaning | who acts |
+|---|---|---|
+| `extraction_uncertainty` | the tool misread the page | us — and it never reaches the client |
+| `statement_inconsistency` | the document disagrees with itself | the auditor — a real finding |
+| `unexplained` | neither attributed nor clean | manual re-performance |
+
+The document may be blamed **only when no extraction doubt is outstanding**.
+While the tool still doubts itself it does not get to blame the paper. An
+auditor who chases a phantom reconciling item loses a day; one who books an
+adjustment against it has put an extraction defect into a client's accounts.
+
+**Verdicts** are `tied`, `tied_with_notes`, `exceptions_identified`,
+`not_tied` — each carrying next steps in the auditor's own terms: which page
+to inspect, which amounts to vouch, whether the population may be sampled at
+all. A verdict that does not say what to do next is a status, not a workpaper.
 
 ## Measured accuracy
 
@@ -289,7 +344,11 @@ divide the work. Reverted.
 reads poorly. Rungs 2 and 4 are built and measured below; neither helps the
 two files that fail, because neither failure is a misunderstanding of layout.
 
-**HTTP API and UI** — the assignment marks them "really optional".
+**~~HTTP API and UI~~** — cut early, **brought back on 2026-09-03**. The
+assignment marks them "really optional", which was the right read of the
+assignment and the wrong read of the buyer: for an audit firm a reconciliation
+nobody can hand to a reviewer is not a workpaper. Recorded here rather than
+quietly changed.
 
 **Transaction categorization, description normalization, batch processing,
 persistence** — not asked for.
