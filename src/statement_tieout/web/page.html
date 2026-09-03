@@ -284,7 +284,7 @@ details.period .body{padding:0 1rem 1.2rem;display:flex;flex-direction:column;ga
   function verdictBanner(audit) {
     var box = el("div", "verdict v-" + audit.verdict);
     box.appendChild(el("div", "name", VERDICT_TITLE[audit.verdict] || audit.verdict));
-    box.appendChild(el("h2",
+    box.appendChild(el("h2", null,
       audit.periods.length === 1
         ? "One statement period, " + audit.transactions + " transactions"
         : audit.periods.length + " statement periods, " + audit.transactions + " transactions"));

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tieout",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "uvicorn", "statement_tieout.web.app:app", "--port", "8000"],
+      "port": 8000
+    }
+  ]
+}
