@@ -201,6 +201,24 @@ printed totals correct and the printed block closes against itself. The
 residual of 749.82 is exactly its two cheques, which are printed two to a line
 in a section with its own column geometry — see [Cut scope](#cut-scope).
 
+### What is actually missing
+
+Every remaining gap is named rather than estimated.
+
+**Ixonia, period 1 — three rows of 192.** Two deposits worth 12,844.78 and one
+withdrawal worth 8,310.10. Six were missing a round ago: two were OCR
+splitting one printed number across boxes, and one had lost its amount
+entirely and is now recovered from the running-balance step.
+
+**Renasant — two rows of ten**, worth exactly the 749.82 residual. Both sit in
+a cheque section printed two to a line.
+
+**The balance-step recovery, honestly.** It recovered 89 rows across the
+binder and it is not free of cost: three periods improved enormously (one from
+−862,994.92 to −122,303.42), three drifted by 40 to 1,224 because a line that
+was not a transaction got one anyway. Net strongly positive, always counted in
+a warning, and visible in the result.
+
 ### Latency
 
 OCR is the entire cost and the pipeline around it is free: measured per page,
@@ -231,46 +249,50 @@ confidently wrong side is not.
 
 ## Known weaknesses
 
-- **One transaction per line.** A section printing two side by side loses half
-  its rows (Renasant, above). The largest correctness gap.
-- **A row that keeps only its balance is lost.** OCR sometimes drops a row's
-  description and amount together; the amount is recoverable from the balance
-  step, and that is not built (above).
-- **Some periods never learn their date range**, so their yearless row dates
-  keep a placeholder year — 375 rows across the binder. The money is
-  unaffected, which is why reconciliation does not notice; the dates are
-  simply wrong, and the warning says so.
+- **A section with its own column geometry is not read.** Renasant's cheque
+  section puts dates at x 153–188 and amounts at 261–303, where the rest of
+  that statement uses 49–88 and 512–584. See [Cut scope](#cut-scope).
+- **The balance-step recovery occasionally recovers a line that was not a
+  transaction** (above). Bounded, counted, reported.
 - **Descriptions from a scan are less faithful.** OCR returns line segments
   and drops spaces, so an all-capitals description stays one token
-  (`REMOTEDEPOSITLINK`). Amounts, dates and balances are unaffected.
+  (`REMOTEDEPOSITLINK`). Amounts, dates and balances are unaffected, which is
+  why reconciliation still works.
 - **A column seen only once is not claimed.** Alignment identifies a money
-  column from two occurrences; one is genuinely ambiguous with an amount
-  inside a sentence.
+  column from two occurrences; one is indistinguishable from an amount inside
+  a sentence.
 - **The bank name is the largest type on the page**, which on a scan whose
   logo OCRs onto two lines returns `RENASANT` rather than `RENASANT BANK`.
-- **Ground truth for the summary was read by the same eyes that wrote the
-  parser** — except on the Ixonia statement, where the assignment states the
-  expected output itself and the two sources agree.
-- **Latency on scans is ~2.5 s per page**: 251 s for the 99-page binder. Fine
-  for a batch tool, wrong for an interactive one.
+- **OCR is the whole latency budget** — about 6 s a page, so roughly ten
+  minutes for the 99-page binder.
 
 ## Cut scope
 
-Deliberate, and recorded here rather than silently implemented:
+Deliberate, and recorded here rather than silently implemented.
 
-- **HTTP API and UI** — the assignment marks them "really optional".
-- **Rungs 1–4** — the profile cache, the model-derived layout profile, model
-  transcription, and the bounded repair agent. The seams exist
-  (`LayoutProfile` is already the structured-output contract, and the ladder
-  branches exactly where the verifier fails); the rungs do not. The reason is
-  measurement, not time: **no sample has needed one yet.** Building a model
-  path before the free path has failed would be paying for a capability with
-  no evidence it is required — and the evidence, when it arrives, is a
-  reconciliation failure naming the file and the residual.
-- **Multi-transaction rows** — the one gap the evidence *does* point at, and
-  the next thing to build. It is a change to the row model, not a rung.
-- **Transaction categorization, description normalization, batch processing,
-  persistence** — not asked for.
+**Multi-up sections — cut on evidence, not on effort.** Both scanned binders
+print a table with several transactions to a line, and parsing them would help
+one file and break the other. Renasant's cheque section is the *only* record
+of its two cheques, so reading it would close that statement. Ixonia's cheque
+listing is a *duplicate* view: all twenty of its amounts already appear in the
+main transaction table, checked one by one, so reading it would double-count
+about 40,000 of withdrawals. A rule that fixes one held-out file by breaking
+another is not a fix — and nothing on the page tells the two cases apart, only
+the reconciliation afterwards.
+
+**Parallel OCR — cut on measurement.** Implemented across four processes and
+measured on the same file: **137 s against 100 s**. The OCR runtime is already
+multi-threaded and saturates the cores, so four copies contend rather than
+divide the work. Reverted.
+
+**Rungs 1 and 3** — the profile cache, and model transcription of pages OCR
+reads poorly. Rungs 2 and 4 are built and measured below; neither helps the
+two files that fail, because neither failure is a misunderstanding of layout.
+
+**HTTP API and UI** — the assignment marks them "really optional".
+
+**Transaction categorization, description normalization, batch processing,
+persistence** — not asked for.
 
 ## Provider configuration
 
