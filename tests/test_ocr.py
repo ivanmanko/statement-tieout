@@ -174,3 +174,10 @@ class TestBannerSplitting:
     def test_a_lone_asterisk_run_is_kept(self):
         (word,) = words_from_segments([segment("*****", 0.0, 50.0)], scale=1.0)
         assert word.text == "*****"
+
+    def test_a_token_with_no_digits_is_never_a_candidate(self):
+        """A word cannot become a date or an amount, so it is not even tried."""
+        words = words_from_segments(
+            [segment("Illinois", 0.0, 60.0), segment("bill", 70.0, 100.0)], scale=1.0
+        )
+        assert [w.text for w in words] == ["Illinois", "bill"]

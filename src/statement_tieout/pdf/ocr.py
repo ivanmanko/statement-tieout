@@ -103,6 +103,11 @@ def _repair_ones(token: str) -> str:
     Self-verifying: a substitution that yields neither a date nor an amount is
     thrown away, which is what leaves `Ixonia` and `Life` alone.
     """
+    # A token with no digit cannot become a date or an amount, so it is not
+    # tried: that skips almost every word on the page, and trying them costs
+    # a dozen strptime failures each.
+    if not any(character.isdigit() for character in token):
+        return token
     candidate = token.translate(_ONE_LOOKALIKES)
     if candidate == token:
         return token
