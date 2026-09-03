@@ -205,3 +205,65 @@ class TestWholeFile:
         dumped = report.model_dump(mode="json")
         assert dumped["verdict"] == "tied"
         assert dumped["periods"][0]["completeness"]["bounded"] is True
+
+
+class TestWhereToLook:
+    """SPEC §8 — a residual is a number; an auditor needs a direction."""
+
+    def test_a_side_that_agrees_is_named_as_agreeing(self):
+        """Renasant: deposits exact, the whole shortfall among the payments."""
+        report = audit(result(
+            summary(dep="300.00", wd="50.00"),
+            rows(("d", "100.00"), ("d", "200.00"), ("w", "20.00")),
+            Reconciliation(reconciled=False, checks={}, residual=Decimal("30.00")),
+        ))
+        sides = report.periods[0].sides
+        assert sides.deposits.difference == Decimal("0.00")
+        assert sides.withdrawals.difference == Decimal("-30.00")
+        assert "payments" in sides.statement.casefold()
+
+    def test_a_shortfall_among_the_money_in(self):
+        report = audit(result(
+            summary(dep="300.00", wd="50.00"),
+            rows(("d", "100.00"), ("w", "50.00")),
+            Reconciliation(reconciled=False, checks={}, residual=Decimal("-200.00")),
+        ))
+        assert "money in" in report.periods[0].sides.statement.casefold()
+
+    def test_both_sides_differing_says_so(self):
+        report = audit(result(
+            summary(dep="300.00", wd="50.00"),
+            rows(("d", "100.00"), ("w", "20.00")),
+            Reconciliation(reconciled=False, checks={}, residual=Decimal("-170.00")),
+        ))
+        assert "both" in report.periods[0].sides.statement.casefold()
+
+    def test_more_than_printed_reads_as_over_not_short(self):
+        report = audit(result(
+            summary(dep="300.00", wd="50.00"),
+            rows(("d", "100.00"), ("d", "200.00"), ("d", "75.00"), ("w", "50.00")),
+            Reconciliation(reconciled=False, checks={}, residual=Decimal("75.00")),
+        ))
+        assert "over" in report.periods[0].sides.statement.casefold()
+
+    def test_agreement_on_both_sides(self):
+        report = audit(result(summary(), GOOD,
+                              Reconciliation.reconciled_on({"balance_equation"})))
+        assert "agree" in report.periods[0].sides.statement.casefold()
+
+    def test_unprinted_totals_cannot_point_anywhere(self):
+        printed = {"beginning_balance", "ending_balance"}
+        report = audit(result(summary(printed=printed), GOOD,
+                              Reconciliation(reconciled=False, checks={},
+                                             residual=Decimal("-5.00"))))
+        sides = report.periods[0].sides
+        assert sides.deposits.printed is None
+        assert "cannot" in sides.statement.casefold()
+
+    def test_the_direction_is_the_second_thing_the_auditor_reads(self):
+        report = audit(result(
+            summary(dep="300.00", wd="50.00"),
+            rows(("d", "100.00"), ("d", "200.00"), ("w", "20.00")),
+            Reconciliation(reconciled=False, checks={}, residual=Decimal("30.00")),
+        ))
+        assert "payments" in report.periods[0].next_steps[1].casefold()

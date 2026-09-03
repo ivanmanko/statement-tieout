@@ -628,6 +628,14 @@ it was read from and its **line index** on that page, and every summary field
 records whether it was printed or derived (§7.8). A figure that cannot be
 traced to evidence cannot be relied on, however correct it happens to be.
 
+**"Where do I look?"** A residual is a number; an auditor needs a direction.
+Each side is compared with its own printed total, so the view can say which
+half of the page the shortfall is on: *deposits agree exactly, the entire
+749.82 is among the payments out*. That halves the search before anyone opens
+the file. Where a side total is not printed the comparison is vacuous — the
+derived figure equals the parsed one by construction — and the view says so
+instead of implying agreement.
+
 **"Is this exception mine or the statement's?"** Note the question is not
 "mine or the client's": this system sees **only the bank statement** and never
 the client's ledger, so it cannot produce a bank-versus-book difference. What
