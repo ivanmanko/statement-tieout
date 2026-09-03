@@ -66,17 +66,37 @@ class _State:
     yearless_rows: int = 0
     zero_rows: int = 0
     rejected_rows: int = 0
+    summary_rows: int = 0
 
     def consume(self, line: list[Word], parsed: ParsedRows) -> None:
         when = self._date_on(line)
         amounts = self._money_on(line)
 
         if when is not None and any(m.column is not None for m in amounts):
+            if self._is_multi_column_summary(line):
+                self.summary_rows += 1
+                return
             self._emit(when, line, amounts, parsed)
             return
 
         if not amounts and self._is_description_only(line):
             self._continuation(line, parsed)
+
+    def _is_multi_column_summary(self, line: list[Word]) -> bool:
+        """SPEC §7.13: date -> amount -> date again is a summary table, not a row.
+
+        A date inside a description is unaffected: no amount separates it from
+        the row's own date.
+        """
+        seen_date = seen_amount_after_date = False
+        for word in sorted(line, key=lambda w: w.x0):
+            if self._parse_date(word.text) is not None:
+                if seen_amount_after_date:
+                    return True
+                seen_date = True
+            elif seen_date and _as_money(word.text) is not None:
+                seen_amount_after_date = True
+        return False
 
     def _continuation(self, line: list[Word], parsed: ParsedRows) -> None:
         text = " ".join(word.text for word in line)
@@ -225,6 +245,11 @@ class _State:
             parsed.warnings.append(
                 f"{self.zero_rows} row(s) carried a zero amount and were skipped: they move "
                 "no money, and every transaction must carry one positive side"
+            )
+        if self.summary_rows:
+            parsed.warnings.append(
+                f"{self.summary_rows} line(s) held several date-and-amount pairs and were "
+                "read as a multi-column summary table rather than as transactions"
             )
         if self.rejected_rows:
             parsed.warnings.append(
