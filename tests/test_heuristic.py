@@ -256,12 +256,19 @@ class TestProfileComesFromTheDensestTablePage:
     """
 
     def table_page(self, number: int = 1):
+        """Two amount columns and a balance whose chain actually holds."""
+        ledger = [
+            (None, "200.51", "4,799.49"),
+            ("1,001.28", None, "5,800.77"),
+            (None, "202.51", "5,598.26"),
+            ("1,003.28", None, "6,601.54"),
+            (None, "204.51", "6,397.03"),
+            ("1,005.28", None, "7,402.31"),
+        ]
         return page(*[
             two_column_row(100.0 + i * 12.0, f"04/0{i + 1}", "PAYMENT",
-                           deposit=f"{1000 + i}.28" if i % 2 else None,
-                           withdrawal=None if i % 2 else f"{200 + i}.51",
-                           balance=f"{5000 + i}.00")
-            for i in range(6)
+                           deposit=deposit, withdrawal=withdrawal, balance=balance)
+            for i, (deposit, withdrawal, balance) in enumerate(ledger)
         ], number=number)
 
     def noise_page(self, number: int = 2):

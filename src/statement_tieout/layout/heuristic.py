@@ -37,8 +37,14 @@ class _Row:
 
 
 def derive_profile(pages: list[Page]) -> LayoutProfile | None:
-    """A profile for these pages, or None when the page gives no evidence."""
-    rows, headings = _scan(pages)
+    """A profile for these pages, or None when the page gives no evidence.
+
+    Derived from the single densest table page (SPEC §7.19) and applied to all
+    of them: a binder holds cheque images whose amounts sit nowhere near the
+    statement's own columns, and pooling them destroys the statistics the
+    column rule depends on.
+    """
+    rows, headings = _scan(_densest_table_page(pages))
     if len(rows) < MIN_CANDIDATE_ROWS:
         return None
 
@@ -65,6 +71,13 @@ def derive_profile(pages: list[Page]) -> LayoutProfile | None:
         deposit_sections=deposits,
         withdrawal_sections=withdrawals,
     )
+
+
+def _densest_table_page(pages: list[Page]) -> list[Page]:
+    """The page holding the most transaction-shaped rows, as a one-page list."""
+    if len(pages) <= 1:
+        return pages
+    return [max(pages, key=lambda page: len(_scan([page])[0]))]
 
 
 def _scan(pages: list[Page]) -> tuple[list[_Row], list[list[Word]]]:
