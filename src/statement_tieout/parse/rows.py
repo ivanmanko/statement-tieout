@@ -73,6 +73,7 @@ class _State:
     zero_rows: int = 0
     rejected_rows: int = 0
     summary_rows: int = 0
+    recovered_rows: int = 0
 
     def consume(self, line: list[Word], parsed: ParsedRows) -> None:
         when = self._date_on(line)
@@ -85,8 +86,42 @@ class _State:
             self._emit(when, line, amounts, parsed)
             return
 
+        if when is not None and self._recoverable(amounts):
+            self._emit_from_balance(when, line, amounts, parsed)
+            return
+
         if not amounts and self._is_description_only(line):
             self._continuation(line, parsed)
+
+    def _recoverable(self, amounts: list[_Money]) -> bool:
+        """SPEC §7.10: a balance with no amount beside it, and a chain to measure from."""
+        if self.profile.balance_column is None or self.previous_balance is None:
+            return False
+        return not any(m.column is not None for m in amounts) and any(
+            m.is_balance for m in amounts
+        )
+
+    def _emit_from_balance(
+        self, when: date, line: list[Word], amounts: list[_Money], parsed: ParsedRows
+    ) -> None:
+        """Take the amount from the balance step, and let the zero rule filter the rest."""
+        balance = next(m.value for m in amounts if m.is_balance)
+        assert self.previous_balance is not None
+        step = balance - self.previous_balance
+        self.previous_balance = balance
+        if step == ZERO:
+            return  # a balance-summary line, not a transaction (SPEC §7.13)
+
+        parsed.transactions.append(
+            Transaction(
+                date=when,
+                description=self._description_on(line),
+                deposit=step if step > ZERO else None,
+                withdrawal=-step if step < ZERO else None,
+            )
+        )
+        parsed.balances.append(balance)
+        self.recovered_rows += 1
 
     def _is_multi_column_summary(self, line: list[Word]) -> bool:
         """SPEC §7.14: date -> amount -> date again is a summary table, not a row.
@@ -305,6 +340,11 @@ class _State:
             parsed.warnings.append(
                 f"{self.zero_rows} row(s) carried a zero amount and were skipped: they move "
                 "no money, and every transaction must carry one positive side"
+            )
+        if self.recovered_rows:
+            parsed.warnings.append(
+                f"{self.recovered_rows} row(s) lost their amount to OCR and had it recovered "
+                "from the balance step"
             )
         if self.summary_rows:
             parsed.warnings.append(
