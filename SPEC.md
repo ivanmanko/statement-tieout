@@ -470,7 +470,14 @@ Everything a developer would otherwise decide silently in code.
     `anthropic` (default) / `bedrock` / `vertex` / `foundry`; all four expose
     the same `messages.create`. No code path depends on which is chosen.
 
-19. **Heuristic profile derivation (rung 0)**, from word coordinates alone:
+19. **Heuristic profile derivation (rung 0)**, from word coordinates alone.
+    It is derived from the **single densest table page** — the page with the
+    most candidate rows — and then applied to every page of the period. A
+    profile describes the transaction table, and a statement bound together
+    with scanned cheque images holds pages whose layout has nothing to do
+    with it; measured, pooling their amounts into the same clusters
+    destroyed the column statistics and left a 99-page binder with no usable
+    profile at all.
     1. **Candidate rows** are lines whose leading words parse as a date under
        any candidate format (§7.17, plus the yearless formats of §7.11) and
        that carry at least one money token. Fewer than

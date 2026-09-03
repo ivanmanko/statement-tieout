@@ -245,3 +245,41 @@ class TestSectionVocabularyFromRealStatements:
         assert profile.side_strategy is SideStrategy.SECTIONS
         assert profile.withdrawal_sections == ["CHECKS"]
         assert profile.deposit_sections == ["CREDITS"]
+
+
+class TestProfileComesFromTheDensestTablePage:
+    """SPEC §7.19 — a binder holds pages whose layout is not the table's.
+
+    Measured on the Ixonia binder: pooling money from scanned cheque images
+    into the same clusters as the statement's own columns blew the alignment
+    statistics apart, and eleven statements yielded no profile at all.
+    """
+
+    def table_page(self, number: int = 1):
+        return page(*[
+            two_column_row(100.0 + i * 12.0, f"04/0{i + 1}", "PAYMENT",
+                           deposit=f"{1000 + i}.28" if i % 2 else None,
+                           withdrawal=None if i % 2 else f"{200 + i}.51",
+                           balance=f"{5000 + i}.00")
+            for i in range(6)
+        ], number=number)
+
+    def noise_page(self, number: int = 2):
+        """A scanned cheque: money at arbitrary, unaligned positions."""
+        return page(*[
+            line(100.0 + i * 12.0, (DATE_X, f"04/1{i}"), (DESC_X, "CHEQUE"),
+                 (200.0 + i * 37.0, f"{99 + i}.0{i}"))
+            for i in range(5)
+        ], number=number)
+
+    def test_the_table_page_decides_the_columns(self):
+        profile = derive_profile([self.table_page(), self.noise_page()])
+        assert profile is not None
+        assert profile.side_strategy is SideStrategy.TWO_COLUMNS
+        assert len(profile.amount_columns) == 2
+        assert profile.balance_column is not None
+
+    def test_noise_first_does_not_change_the_answer(self):
+        profile = derive_profile([self.noise_page(1), self.table_page(2)])
+        assert profile is not None
+        assert len(profile.amount_columns) == 2
