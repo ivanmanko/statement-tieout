@@ -1,4 +1,4 @@
-"""The bounded repair loop — rung 4 (SPEC §4 stage 9, §7.17).
+"""The bounded repair loop — rung 4 (SPEC §4 stage 9, §7.18).
 
 The one place in this project where an agentic loop is justified, and the
 tests say why: the verifier is free, deterministic and automatic, so the model
@@ -92,7 +92,7 @@ class TestItRepairs:
 
 
 class TestItIsBounded:
-    """SPEC §7.17 — the ceilings are enforced before each turn, not hoped for."""
+    """SPEC §7.18 — the ceilings are enforced before each turn, not hoped for."""
 
     def test_the_turn_ceiling_stops_it(self):
         client = StubClient([turn(("list_rows", {"start": 0})) for _ in range(50)])

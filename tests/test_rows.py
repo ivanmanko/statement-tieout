@@ -1,4 +1,4 @@
-"""Transaction row parsing under a given layout profile (SPEC §7.6, §7.11–7.12).
+"""Transaction row parsing under a given layout profile (SPEC §7.6, §7.12–7.12).
 
 Every fixture is synthetic words-with-coordinates. No PDF is opened here: the
 profile is the seam, and this module's job is to be correct for *any* profile,
@@ -145,7 +145,7 @@ class TestNonRowLines:
         assert len(parse_rows([p], profile()).transactions) == 1
 
     def test_a_repeated_header_on_page_two_is_not_swallowed_as_a_continuation(self):
-        """SPEC §7.15: a continuation carries words only in the description band."""
+        """SPEC §7.16: a continuation carries words only in the description band."""
         first = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "A"), (LEFT_X, "10.00"),
                           (BALANCE_X, "1,010.00")))
         second = page(
@@ -175,7 +175,7 @@ class TestNonRowLines:
 
 class TestDates:
     def test_date_outside_the_period_is_kept_and_warned_about(self):
-        """SPEC §7.11: dropping it would break reconciliation silently."""
+        """SPEC §7.12: dropping it would break reconciliation silently."""
         p = page(line(100.0, (DATE_X, "02/14/2025"), (DESC_X, "LATE"), (LEFT_X, "10.00"),
                       (BALANCE_X, "1,010.00")))
         parsed = parse_rows(
@@ -243,7 +243,7 @@ class TestDates:
 
 
 class TestZeroAmountRows:
-    """SPEC §7.12 — a row that moves no money is not a transaction.
+    """SPEC §7.13 — a row that moves no money is not a transaction.
 
     Found by running the binder: one such row raised a validation error and
     killed the whole extraction, which is the wrong failure mode for a file
@@ -274,7 +274,7 @@ class TestZeroAmountRows:
 
 
 class TestOneBadRowDoesNotKillTheDocument:
-    """SPEC §7.14 — a row the contract rejects costs that row, not the file."""
+    """SPEC §7.15 — a row the contract rejects costs that row, not the file."""
 
     def test_a_rejected_row_is_skipped_and_counted(self, monkeypatch):
         import statement_tieout.parse.rows as rows_module
@@ -301,7 +301,7 @@ class TestOneBadRowDoesNotKillTheDocument:
 
 
 class TestMultiColumnSummaryLines:
-    """SPEC §7.13 — a daily-balance table is not a list of transactions.
+    """SPEC §7.14 — a daily-balance table is not a list of transactions.
 
     Measured on the Ixonia binder: one such table added 2,920,908.79 of
     deposits that never happened, because each `Apr 11 521,451.70` pair after
@@ -422,3 +422,61 @@ class TestFragmentedTokens:
                       (LEFT_X, "-17,459.90"), (BALANCE_X, "990.00")))
         (txn,) = parse_rows([p], profile()).transactions
         assert txn.withdrawal == Decimal("17459.90")
+
+
+class TestBalanceStepRecovery:
+    """SPEC §7.10 — a row that kept only its balance takes its amount from the step.
+
+    Measured on the Ixonia binder: OCR loses a row's description and amount
+    together, leaving `Apr 25    487,634.08`. The step from the previous
+    balance is the amount, and the chain would reject it if it were wrong.
+    """
+
+    def rows_with_a_gap(self):
+        return page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "FIRST"), (LEFT_X, "100.00"),
+                 (BALANCE_X, "1,100.00")),
+            line(112.0, (DATE_X, "01/02/2025"), (BALANCE_X, "1,050.00")),
+            line(124.0, (DATE_X, "01/03/2025"), (DESC_X, "THIRD"), (LEFT_X, "-25.00"),
+                 (BALANCE_X, "1,025.00")),
+        )
+
+    def test_the_missing_amount_comes_from_the_step(self):
+        parsed = parse_rows([self.rows_with_a_gap()], profile(),
+                            opening_balance=Decimal("1000.00"))
+        assert [t.deposit or -t.withdrawal for t in parsed.transactions] == [
+            Decimal("100.00"), Decimal("-50.00"), Decimal("-25.00")
+        ]
+
+    def test_the_recovery_is_reported(self):
+        parsed = parse_rows([self.rows_with_a_gap()], profile(),
+                            opening_balance=Decimal("1000.00"))
+        assert any("balance step" in w for w in parsed.warnings)
+
+    def test_a_rising_step_is_a_deposit(self):
+        p = page(
+            line(100.0, (DATE_X, "01/01/2025"), (BALANCE_X, "1,250.00")),
+        )
+        (txn,) = parse_rows([p], profile(), opening_balance=Decimal("1000.00")).transactions
+        assert txn.deposit == Decimal("250.00")
+
+    def test_a_zero_step_is_not_a_transaction(self):
+        """This is what excludes the BEGINNING BALANCE and ENDING BALANCE rows."""
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "BEGINNING BALANCE"),
+                      (BALANCE_X, "1,000.00")))
+        assert parse_rows([p], profile(), opening_balance=Decimal("1000.00")).transactions == []
+
+    def test_it_never_overrides_an_amount_that_is_present(self):
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "REAL"), (LEFT_X, "10.00"),
+                      (BALANCE_X, "9,999.00")))
+        (txn,) = parse_rows([p], profile(), opening_balance=Decimal("1000.00")).transactions
+        assert txn.deposit == Decimal("10.00")
+
+    def test_without_a_balance_column_nothing_is_recovered(self):
+        prof = profile(balance_column=None)
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "NO AMOUNT")))
+        assert parse_rows([p], prof, opening_balance=Decimal("1000.00")).transactions == []
+
+    def test_without_a_previous_balance_nothing_is_recovered(self):
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (BALANCE_X, "1,250.00")))
+        assert parse_rows([p], profile()).transactions == []

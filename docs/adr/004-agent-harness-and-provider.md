@@ -14,7 +14,7 @@ their own machines against statements we have never seen.
 
 **Harness:** a small tool-call loop of our own, over tools we define
 (`state`, `read_page`, `find_amount`, `list_rows`, `insert_row`, `drop_row`,
-`set_side`), with the SPEC §7.17 ceilings on turns and dollars checked before
+`set_side`), with the SPEC §7.18 ceilings on turns and dollars checked before
 each turn.
 
 > **Amended in implementation.** This ADR originally specified

@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date, datetime
 
-#: Candidate formats carrying a year, most specific first. Declared in SPEC §7.18.
+#: Candidate formats carrying a year, most specific first. Declared in SPEC §7.19.
 DATE_FORMATS: tuple[str, ...] = (
     "%m/%d/%Y",
     "%m/%d/%y",
@@ -24,11 +24,11 @@ DATE_FORMATS: tuple[str, ...] = (
     "%d %b %Y",
 )
 
-#: Formats without a year, used only on transaction rows (SPEC §7.11).
+#: Formats without a year, used only on transaction rows (SPEC §7.12).
 YEARLESS_FORMATS: tuple[str, ...] = ("%m/%d", "%m-%d", "%b %d", "%d %b")
 
 #: The year a yearless format parses to. A leap year, so "02/29" still parses,
-#: and a sentinel the row parser replaces with the period's year (SPEC §7.11).
+#: and a sentinel the row parser replaces with the period's year (SPEC §7.12).
 STAND_IN_YEAR = 1904
 
 #: How many whitespace-separated words a date may span.

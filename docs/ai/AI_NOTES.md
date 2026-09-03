@@ -63,7 +63,7 @@ asserted that `01/28` parsed under `%m/%d` yields `date(1900, 1, 28)`, which
 is just `strptime`'s default leaking into the contract. Real statements print
 yearless dates constantly. Replaced with year inference from the statement
 period, including the December-to-January rollover, and declared in SPEC
-§7.11. The same change removed 4,108 deprecation warnings, because parsing
+§7.12. The same change removed 4,108 deprecation warnings, because parsing
 against a fixed leap year is also what CPython is asking for.
 
 **pdfplumber splits words on whitespace, so a date can be three of them.**
@@ -92,7 +92,7 @@ the 13.7 KB file is digital. Size predicts nothing. See ADR-005 — this is
 what moved OCR out of the ladder and into ingest.
 
 **The share threshold for money columns was wrong, and measurement said so
-before any test did.** SPEC §7.20 originally discarded a money cluster
+before any test did.** SPEC §7.21 originally discarded a money cluster
 appearing on under 30% of rows, as a way of rejecting amounts embedded in
 descriptions. Fulton's statement is mostly checks: its deposits column sits on
 16% of rows. Printing the actual clusters settled it —
@@ -172,8 +172,8 @@ It also killed six more assumptions, in the order they surfaced.
 **A single bad row killed the whole file.** One row carried a zero amount, the
 output contract requires a strictly positive side, and the resulting
 `ValidationError` aborted a six-minute run. Two rules came out of it: a
-zero-amount row is not a transaction (SPEC §7.12), and a row the contract
-rejects for any other reason costs that row and not the document (§7.14). A
+zero-amount row is not a transaction (SPEC §7.13), and a row the contract
+rejects for any other reason costs that row and not the document (§7.15). A
 project whose entire thesis is "a diagnosable partial result beats silence"
 had been returning silence.
 
@@ -196,13 +196,13 @@ anywhere in the document, the weaker anchors are ignored (§7.3).
 holds cheque images whose money sits nowhere near the statement's columns.
 With them in the same clusters, eleven statements yielded *no usable profile
 at all*. The profile now comes from the single densest table page and is
-applied to the rest (§7.20).
+applied to the rest (§7.21).
 
 **A daily-balance table was parsed as transactions.** `Apr 01 607,330.75
 Apr 11 521,451.70 …` across the page added **2,920,908.79** of deposits that
 never happened. The rule that catches it needs no vocabulary: date → amount →
 date again is a multi-column summary, while a date *inside* a description has
-no amount separating it from the row's own date (§7.13). It then failed on the
+no amount separating it from the row's own date (§7.14). It then failed on the
 real page anyway, because `Apr 11` is two words and I had scanned one word at
 a time — the same mistake I had already made and fixed once in the leading-date
 parser.

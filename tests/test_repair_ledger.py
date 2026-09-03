@@ -1,4 +1,4 @@
-"""The editable ledger rung 4 works on (SPEC §4 stage 9, §7.17).
+"""The editable ledger rung 4 works on (SPEC §4 stage 9, §7.18).
 
 Pure and offline: no model here. This is the surface an agent is given, and
 its whole job is that every edit is answered with a fresh verdict — the agent

@@ -1,4 +1,4 @@
-"""Rung 4: the bounded repair loop (SPEC §4 stage 9, §7.17).
+"""Rung 4: the bounded repair loop (SPEC §4 stage 9, §7.18).
 
 This is the one place in the project where an agentic loop earns its cost, and
 the reason is the same one the whole design rests on: the verifier is free,
@@ -36,7 +36,7 @@ page and whether a row already carries it.
 Stop as soon as the period reconciles. If you cannot make it reconcile, say \
 so and stop — a wrong repair is worse than none, and will be discarded."""
 
-#: SPEC §7.17. Descriptions are what the model plans against, so they say what
+#: SPEC §7.18. Descriptions are what the model plans against, so they say what
 #: each tool is *for*, not merely what it takes.
 TOOLS: list[dict] = [
     {

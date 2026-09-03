@@ -17,6 +17,6 @@ WITHDRAWAL_LABELS = ("total checks/debits", "withdrawals and debits", "checks/de
                      "other debits", "checks")
 
 #: Statements that state their cycle as a pair of lines rather than a range
-#: (SPEC §7.18): the last statement's date opens this period, this one's closes it.
+#: (SPEC §7.19): the last statement's date opens this period, this one's closes it.
 CYCLE_START_LABEL = "last statement"
 CYCLE_END_LABEL = "this statement"

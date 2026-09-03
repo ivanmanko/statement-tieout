@@ -1,4 +1,4 @@
-"""Transaction row parsing under a layout profile (SPEC §7.6, §7.11–7.12).
+"""Transaction row parsing under a layout profile (SPEC §7.6, §7.12–7.12).
 
 No model runs here on any rung of the ladder. Given a profile, reading rows is
 arithmetic over coordinates — and it has to be, because the reconciliation
@@ -89,7 +89,7 @@ class _State:
             self._continuation(line, parsed)
 
     def _is_multi_column_summary(self, line: list[Word]) -> bool:
-        """SPEC §7.13: date -> amount -> date again is a summary table, not a row.
+        """SPEC §7.14: date -> amount -> date again is a summary table, not a row.
 
         Dates are joined across words the same way the leading date is, because
         a statement writes `Apr 11`, not `Apr11`. A date inside a description is
@@ -145,7 +145,7 @@ class _State:
         balance = next((m.value for m in amounts if m.is_balance), None)
 
         if amount.value == ZERO:
-            # SPEC §7.12: it moves no money and the contract cannot hold it.
+            # SPEC §7.13: it moves no money and the contract cannot hold it.
             self.zero_rows += 1
             if balance is not None:
                 self.previous_balance = balance
@@ -164,7 +164,7 @@ class _State:
                 withdrawal=abs(amount.value) if side == WITHDRAWAL else None,
             )
         except ValidationError:
-            # SPEC §7.14: one malformed row must not cost the whole document.
+            # SPEC §7.15: one malformed row must not cost the whole document.
             self.rejected_rows += 1
             return
 
@@ -222,7 +222,7 @@ class _State:
         return self._infer_year(parsed) if parsed.year == STAND_IN_YEAR else parsed
 
     def _infer_year(self, parsed: date) -> date:
-        """SPEC §7.11: a yearless row takes its year from the period."""
+        """SPEC §7.12: a yearless row takes its year from the period."""
         start = self.period.start if self.period else None
         if start is None:
             self.yearless_rows += 1
@@ -282,7 +282,7 @@ class _State:
         return _Money(value=value, column=column, is_balance=is_balance)
 
     def _is_description_only(self, line: list[Word]) -> bool:
-        """SPEC §7.15: a continuation carries words only in the description band."""
+        """SPEC §7.16: a continuation carries words only in the description band."""
         return all(
             self.profile.date_column.x1 <= word.center <= self.profile.description_x1
             for word in line

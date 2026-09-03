@@ -1,4 +1,4 @@
-"""Rung 2: the model derives a layout profile (SPEC §4 stage 7, §7.16).
+"""Rung 2: the model derives a layout profile (SPEC §4 stage 7, §7.17).
 
 No network here. The client is a stub, because what is worth testing is the
 contract around the model — what it is shown, what shape its answer must
@@ -86,7 +86,7 @@ class TestWhatTheModelIsShown:
         assert prompt.count("--- page") <= MAX_SAMPLE_PAGES
 
     def test_only_a_sample_of_rows_is_sent_never_the_whole_table(self):
-        """SPEC §7.16 — the model must not be asked to read every row."""
+        """SPEC §7.17 — the model must not be asked to read every row."""
         big = page(*[
             line(100.0 + i * 12.0, (DATE_X, "01/01/2025"), (DESC_X, f"ROW{i}"),
                  (LEFT_X, "1.00"))

@@ -68,7 +68,7 @@ def extract_result(pdf_path: str, *, client: LLMClient | None = None) -> Extract
 
     periods, spend = [], Usage()
     for group in segment(pages):
-        # SPEC §7.17: the repair budget is for the whole file, not per period.
+        # SPEC §7.18: the repair budget is for the whole file, not per period.
         period, period_warnings, period_usage = extract_period(
             group, client, MAX_REPAIR_COST_USD - spend.cost_usd
         )

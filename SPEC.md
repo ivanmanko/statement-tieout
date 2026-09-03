@@ -78,7 +78,7 @@ truth for this shape. Nothing else may define or duplicate these fields.
    counts they must agree, and when it does not (§7.8) the field is derived
    from the transactions and therefore holds by construction.
 5. Every `date` lies within `[period.start, period.end]`, or the transaction
-   carries a warning (§7.11).
+   carries a warning (§7.12).
 6. Money is serialized with exactly 2 decimal places.
 
 `null` in any field means **unknown**, never zero and never "matches
@@ -103,9 +103,9 @@ it, and we climb only on rejection.
    on any rung.
 6. **Reconcile** (§5). If the period reconciles, stop — this is the answer.
 7. **Rung 2 — LLM layout profile.** On failure, send **1–2 sample pages**
-   (never the whole table, §7.16) to the model and ask for a `LayoutProfile`
+   (never the whole table, §7.17) to the model and ask for a `LayoutProfile`
    under a strict schema. Re-parse, re-reconcile. At most
-   `max_profile_attempts` (§7.17) attempts, each fed the previous residual.
+   `max_profile_attempts` (§7.18) attempts, each fed the previous residual.
 
    The sample is sent as **words with their coordinates**, not as an image:
    ingest has already produced those for a scan as well as for a text layer
@@ -115,7 +115,7 @@ it, and we climb only on rejection.
    that parses into rows which do not close is rejected exactly like a
    heuristic one.
 8. **Rung 3 — vision transcription** (scanned pages only): transcribe
-   **one page at a time**, each page verified locally (§7.16).
+   **one page at a time**, each page verified locally (§7.17).
 9. **Rung 4 — agentic repair** (bounded). Only on a period that still does
    not reconcile. The model is given the residual, the diagnosis, the printed
    summary and a set of tools over the parsed rows, and works until the
@@ -232,7 +232,7 @@ result that still reconciles.
 | 6 | Transaction table continues across a page break | rows joined without duplicating any; §7.10 detects duplication |
 | 7 | A row whose description wraps to a second line | joined into one transaction (§7.6) |
 | 8 | Period with zero transactions | valid; reconciles iff `beginning == ending` |
-| 9 | Date outside the stated period | kept, flagged with a warning (§7.11) |
+| 9 | Date outside the stated period | kept, flagged with a warning (§7.12) |
 
 ## 7. Declared heuristics and assumptions
 
@@ -297,7 +297,7 @@ Everything a developer would otherwise decide silently in code.
    the graded summary depend on.
 3. **Period anchors**, matched case-insensitively: a line carrying a
    beginning-balance label (§7.5); a change in the account number found on
-   the page (§7.18); a `statement period` / `statement date` line whose
+   the page (§7.19); a `statement period` / `statement date` line whose
    dates differ from the current period's — **compared field by field**, so
    a page stating only an end date does not read as a change of period. A
    continuation page often prints half the range, and splitting on that
@@ -326,7 +326,7 @@ Everything a developer would otherwise decide silently in code.
    declares: the x-ranges of the date, description, amount(s) and balance
    columns; the date format; which **side strategy** applies (§7.6); and the
    summary-block labels found (§7.5). It is data, never code. How rung 0
-   derives one without a model is §7.20.
+   derives one without a model is §7.21.
 5. **Summary block labels** are matched by normalized substring against a
    declared vocabulary — beginning: `beginning balance`, `previous balance`,
    `opening balance`, `balance forward`; ending: `ending balance`,
@@ -411,11 +411,28 @@ Everything a developer would otherwise decide silently in code.
    keeps years, page numbers and account digits out of the amount scan.
    `float` appears only at JSON serialization. Reconciliation tolerance is
    exactly `Decimal("0.00")`.
-10. **Running-balance chain** is used as a row-level verifier whenever a
+10. **A row that kept only its balance takes its amount from the step.**
+    Where the profile has a balance column and a row carries a date and a
+    balance but **no amount in any amount column**, the amount is
+    `balance[i] − balance[i−1]` and the side is its sign. OCR loses a row's
+    description and amount together often enough to matter — two of the six
+    missing rows on the Ixonia binder are exactly this.
+
+    Three things keep it from inventing transactions. It runs only when an
+    amount is genuinely absent, never to override one. A zero step is not a
+    transaction (§7.13), which is what silently excludes the
+    `BEGINNING BALANCE` and `ENDING BALANCE` rows — their step is zero by
+    construction. And every recovered row is counted in a warning, so a
+    result that leans on this is visibly different from one that does not.
+
+    This is the one place the running balance stops being only a verifier
+    (§7.12) and becomes a source. That is a deliberate narrowing: the value it
+    supplies is one the chain would immediately reject if it were wrong.
+11. **Running-balance chain** is used as a row-level verifier whenever a
     balance column is present: `balance[i−1] ± amount[i] == balance[i]`. A
     break localizes the error to row *i*. It is a verifier, not a parser —
     a statement without the column loses this check and nothing else.
-11. **Dates** are parsed with the profile's declared format, with a trailing
+12. **Dates** are parsed with the profile's declared format, with a trailing
     `:`, `;` or `.` tried away as well — punctuation attaches to dates in
     the wild (`DECEMBER 31, 2024: LAST STATEMENT`). When a
     statement is ambiguous between `MM/DD` and `DD/MM`, the format that
@@ -429,34 +446,34 @@ Everything a developer would otherwise decide silently in code.
     date is preferable to a plausible wrong one. A transaction date outside
     the period is kept and warned about, never dropped: dropping it would
     break reconciliation silently.
-12. **A row whose amount is zero is not a transaction** and is skipped, with
+13. **A row whose amount is zero is not a transaction** and is skipped, with
     a warning naming how many were. It moves no money, so skipping keeps
     reconciliation exact; and the output contract cannot represent it, since
     every transaction carries one strictly positive side (§3 invariant 1).
     §5.1 names the matching residual signature `zero_amount_rows`.
-13. **A line reading date → amount → date again is not a transaction row.**
+14. **A line reading date → amount → date again is not a transaction row.**
     It is a multi-column summary — a daily-balance table prints
     `Apr 01 607,330.75 Apr 11 521,451.70` across the page — and parsing it as
     a transaction invents money that was never moved. A date *inside* a
     description (`PAYABLES 04/15 INVOICE`) is unaffected, because no amount
     separates it from the row's own date. Measured: one such table added
     2,920,908.79 of deposits that do not exist.
-14. **A row the contract rejects costs that row, not the document.** If a
+15. **A row the contract rejects costs that row, not the document.** If a
     parsed row fails `Transaction` validation for any other reason, it is
     skipped and counted in a warning rather than raised. One malformed row
     in a 99-page file must not turn a diagnosable partial result into no
     result at all — and the loss is not silent, because reconciliation is
     what reports it.
-15. **Description** is the text between the date and the first amount
+16. **Description** is the text between the date and the first amount
     column, whitespace-normalized. A row whose next line has no date and no
     amount is a wrapped continuation and is appended to the previous
     description.
-16. **The model never transcribes what cannot be verified.** Rung 2 sees at
+17. **The model never transcribes what cannot be verified.** Rung 2 sees at
     most `max_sample_pages = 2` pages and returns a *profile*, not rows.
     Rung 3 transcribes at most one page per call, and each page's output
     must satisfy either its running-balance chain or a section subtotal
     before it is accepted.
-17. **Bounds:** `max_profile_attempts = 3`; rung 4 stops at
+18. **Bounds:** `max_profile_attempts = 3`; rung 4 stops at
     `max_repair_turns = 12` per period or `max_repair_cost_usd = 0.25`
     **for the whole statement**, whichever comes first. The dollar ceiling is
     per file rather than per period on purpose: a binder holds eleven
@@ -478,7 +495,7 @@ Everything a developer would otherwise decide silently in code.
     the model is told after each move whether it helped. Default model `claude-opus-5`, `temperature` unset,
     structured output enforced server-side by re-validating against the
     `LayoutProfile` schema.
-18. **Account identity** is read from the first page of the period:
+19. **Account identity** is read from the first page of the period:
     - **bank** — the **words set in the largest type** among the first
       `letterhead_lines = 15` lines, taking every word within
       `letterhead_size_ratio = 0.85` of that maximum on the line where it
@@ -510,18 +527,18 @@ Everything a developer would otherwise decide silently in code.
       `Ending Balance as of 04/30/2025` the end. Statements routinely print
       only a `Statement Date` in the header while stating the real range
       beside the balances — and without the start, a transaction line
-      reading `Apr 01` has no year (§7.11).
+      reading `Apr 01` has no year (§7.12).
 
       Core-banking statements often state the cycle as a *pair* of lines
       instead: `DECEMBER 31, 2024: LAST STATEMENT` above `JANUARY 31, 2025:
       THIS STATEMENT`. A line containing `last statement` supplies the
       start, one containing `this statement` supplies the end, and either
       may appear without the other.
-19. **Provider is an installation parameter.** `LLM_PROVIDER` selects
+20. **Provider is an installation parameter.** `LLM_PROVIDER` selects
     `anthropic` (default) / `bedrock` / `vertex` / `foundry`; all four expose
     the same `messages.create`. No code path depends on which is chosen.
 
-20. **Heuristic profile derivation (rung 0)**, from word coordinates alone.
+21. **Heuristic profile derivation (rung 0)**, from word coordinates alone.
     It is derived from the **single densest table page** — the page with the
     most candidate rows — and then applied to every page of the period. A
     profile describes the transaction table, and a statement bound together
@@ -530,7 +547,7 @@ Everything a developer would otherwise decide silently in code.
     destroyed the column statistics and left a 99-page binder with no usable
     profile at all.
     1. **Candidate rows** are lines whose leading words parse as a date under
-       any candidate format (§7.18, plus the yearless formats of §7.11) and
+       any candidate format (§7.19, plus the yearless formats of §7.12) and
        that carry at least one money token. Fewer than
        `min_candidate_rows = 3` of them means no profile: rung 0 declines
        rather than guessing, and the ladder escalates.

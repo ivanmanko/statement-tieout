@@ -1,4 +1,4 @@
-"""The surface rung 4 works on (SPEC §4 stage 9, §7.17).
+"""The surface rung 4 works on (SPEC §4 stage 9, §7.18).
 
 An agentic loop is worth running only where the verifier is free, automatic
 and deterministic — and here it is. Every edit below re-runs the six checks

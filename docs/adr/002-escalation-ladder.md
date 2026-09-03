@@ -40,7 +40,7 @@ Two properties make this more than a fallback chain. Rungs 0–1 are free, so a
 statement the heuristics handle costs literally nothing — not "cheap", zero.
 And the model's job on rung 2 is to return a **layout profile**, which is
 data describing where the columns are, not the contents of the rows: it sees
-a sample, never the whole table (SPEC §7.16).
+a sample, never the whole table (SPEC §7.17).
 
 Rungs 3 and 4 are declared here but out of scope for this delivery (SPEC §1).
 
