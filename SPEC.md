@@ -309,7 +309,14 @@ Everything a developer would otherwise decide silently in code.
 
    A line carrying **two or more labels and no money** is a label row; the
    next line carrying two or more money tokens is its value row, and each
-   amount is assigned to the nearest label by horizontal midpoint. Both
+   amount is assigned to the nearest label by horizontal midpoint.
+
+   Two guards, both from one real page. The value row **must not open with a
+   date**, and the horizontal block is searched **only above the first
+   transaction row** — never in the body. Without them the transaction
+   table's own header (`Date Description Deposits Withdrawals Balance`) reads
+   as a label row and the first transaction reads as its totals, which is a
+   wrong summary rather than a missing one. Both
    layouts are common; a reader that only knows the vertical one finds no
    summary at all on a bank that uses the other.
 

@@ -361,3 +361,39 @@ class TestPeriodFromBalanceLines:
     def test_a_balance_line_with_no_date_changes_nothing(self):
         period = read_header(["Beginning balance $597,068.70"]).account.period
         assert period.start is None
+
+
+class TestHorizontalBlockIsNotTheTableHeader:
+    """SPEC §7.5 — the transaction table's header carries the label vocabulary too."""
+
+    def table_header_and_first_row(self):
+        return [
+            line(100.0, (30.0, "Date"), (90.0, "Description"),
+                 (330.0, "Deposits"), (420.0, "Withdrawals"), (515.0, "Balance")),
+            line(112.0, (30.0, "Apr 01"), (90.0, "BEGINNING BALANCE"),
+                 (330.0, "1,809.28"), (515.0, "597,068.70")),
+        ]
+
+    def test_a_value_row_that_opens_with_a_date_is_a_transaction(self):
+        reading = read_header(self.table_header_and_first_row())
+        assert reading.deposits_total is None
+        assert reading.withdrawals_total is None
+
+    def test_the_real_block_above_still_wins(self):
+        rows = [
+            line(60.0, (50.0, "+Deposits and Credits (81)"), (300.0, "$1,214,254.05")),
+            line(72.0, (50.0, "-Withdrawals and Debits (111)"), (300.0, "$1,302,201.16")),
+            *self.table_header_and_first_row(),
+        ]
+        reading = read_header(rows)
+        assert reading.deposits_total == Decimal("1214254.05")
+        assert reading.deposits_count == 81
+        assert reading.withdrawals_total == Decimal("1302201.16")
+        assert reading.withdrawals_count == 111
+
+    def test_the_horizontal_block_is_not_searched_in_the_body(self):
+        reading = read_header(
+            [line(60.0, (50.0, "ACME BANK"))],
+            body_lines=self.table_header_and_first_row(),
+        )
+        assert reading.deposits_total is None
