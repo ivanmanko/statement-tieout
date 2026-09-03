@@ -8,6 +8,7 @@ through exactly the same parser and the same verifier.
 
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 import pdfplumber
@@ -22,19 +23,24 @@ class ExtractionError(RuntimeError):
     """The file could not be opened or read at all (SPEC §6 edge case 1)."""
 
 
-def load_pages(path: str | Path, *, ocr: bool = True) -> list[Page]:
-    """Every page as words with coordinates, reading scans with OCR unless disabled."""
+def load_pages(source: str | Path | bytes, *, ocr: bool = True) -> list[Page]:
+    """Every page as words with coordinates, reading scans with OCR unless disabled.
+
+    `source` may be bytes: an uploaded statement is client data and is held in
+    memory rather than written to disk (SPEC §9).
+    """
+    path = BytesIO(source) if isinstance(source, bytes) else source
     try:
         with pdfplumber.open(path) as document:
             pages = [_from_text_layer(n, p) for n, p in enumerate(document.pages, start=1)]
     except ExtractionError:
         raise
     except Exception as error:  # pdfplumber raises a wide range for bad input
-        raise ExtractionError(f"could not read {path}: {error}") from error
+        raise ExtractionError(f"could not read the file: {error}") from error
 
     scanned = [page.number for page in pages if page.source == "empty"]
     if scanned and ocr:
-        pages = _with_ocr(path, pages, scanned)
+        pages = _with_ocr(source, pages, scanned)
     return pages
 
 
@@ -55,16 +61,16 @@ def _from_text_layer(number: int, source) -> Page:
     return Page(number=number, words=words, text=text, source="text")
 
 
-def _with_ocr(path: str | Path, pages: list[Page], scanned: list[int]) -> list[Page]:
+def _with_ocr(source: str | Path | bytes, pages: list[Page], scanned: list[int]) -> list[Page]:
     """Re-read the pages with no text layer as pixels."""
     import pypdfium2
 
     from .ocr import read_page
 
     try:
-        document = pypdfium2.PdfDocument(path)
+        document = pypdfium2.PdfDocument(source)
     except Exception as error:
-        raise ExtractionError(f"could not rasterize {path}: {error}") from error
+        raise ExtractionError(f"could not rasterize the file: {error}") from error
 
     try:
         for index in scanned:

@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statement Tie-Out</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600;700&display=swap">
+<style>
+:root {
+  --paper:#faf8f4; --sunk:#f2efe8; --ink:#17191c; --ink-soft:#4a4740; --muted:#77726a;
+  --rule:#ddd8cd; --rule-firm:#b9b2a4; --accent:#12615c; --accent-bg:#e4efec;
+  --credit:#1c6b40; --credit-bg:#e6f1ea; --debit:#9d3226; --debit-bg:#f7e9e6;
+  --amber:#8a6216; --amber-bg:#f8f0dd;
+  --serif:"IBM Plex Serif",Georgia,serif;
+  --sans:"IBM Plex Sans","Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:"IBM Plex Mono","SF Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#14161a; --sunk:#1b1e23; --ink:#e9e5dd; --ink-soft:#c2bcb2; --muted:#918c84;
+  --rule:#2d3138; --rule-firm:#454b54; --accent:#57b8b0; --accent-bg:#17302f;
+  --credit:#5cbc80; --credit-bg:#16281d; --debit:#e28375; --debit-bg:#2c1b18;
+  --amber:#d6ac52; --amber-bg:#2b2415;
+}}
+:root[data-theme="dark"]{
+  --paper:#14161a; --sunk:#1b1e23; --ink:#e9e5dd; --ink-soft:#c2bcb2; --muted:#918c84;
+  --rule:#2d3138; --rule-firm:#454b54; --accent:#57b8b0; --accent-bg:#17302f;
+  --credit:#5cbc80; --credit-bg:#16281d; --debit:#e28375; --debit-bg:#2c1b18;
+  --amber:#d6ac52; --amber-bg:#2b2415;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:62rem;margin:0 auto;padding:2.5rem 1.5rem 5rem;
+  display:flex;flex-direction:column;gap:2rem}
+
+/* masthead */
+.masthead{display:flex;flex-direction:column;gap:.5rem;
+  border-bottom:2px solid var(--rule-firm);padding-bottom:1.1rem}
+.eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent)}
+h1{font-family:var(--serif);font-weight:700;font-size:clamp(1.7rem,4vw,2.3rem);
+  margin:0;letter-spacing:-.01em}
+.lede{color:var(--ink-soft);max-width:52ch;margin:0}
+
+/* upload */
+.dropzone{border:2px dashed var(--rule-firm);background:var(--sunk);
+  padding:2rem 1.5rem;display:flex;flex-direction:column;align-items:center;
+  gap:.8rem;text-align:center;transition:border-color .15s,background .15s}
+.dropzone.over{border-color:var(--accent);background:var(--accent-bg)}
+.dropzone p{margin:0;color:var(--muted);font-size:.93rem}
+button{font-family:var(--sans);font-size:.95rem;font-weight:500;cursor:pointer;
+  background:var(--accent);color:var(--paper);border:0;padding:.6rem 1.3rem}
+button:disabled{opacity:.5;cursor:default}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* resting explainer */
+.primer{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1.5rem}
+.primer section{display:flex;flex-direction:column;gap:.35rem}
+.primer h3{font-family:var(--serif);font-size:1.02rem;margin:0}
+.primer p{margin:0;font-size:.92rem;color:var(--ink-soft)}
+.primer .q{font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--accent)}
+
+/* status */
+.status{font-family:var(--mono);font-size:.88rem;color:var(--muted)}
+.status.bad{color:var(--debit)}
+
+/* verdict */
+.verdict{border:1px solid var(--rule-firm);border-left-width:6px;padding:1.1rem 1.3rem;
+  display:flex;flex-direction:column;gap:.4rem}
+.verdict .name{font-family:var(--mono);font-size:.74rem;letter-spacing:.1em;
+  text-transform:uppercase}
+.verdict h2{font-family:var(--serif);font-size:1.35rem;margin:0}
+.verdict p{margin:0;color:var(--ink-soft);font-size:.95rem}
+.v-tied{border-left-color:var(--credit);background:var(--credit-bg)}
+.v-tied .name{color:var(--credit)}
+.v-tied_with_notes,.v-exceptions_identified{border-left-color:var(--amber);background:var(--amber-bg)}
+.v-tied_with_notes .name,.v-exceptions_identified .name{color:var(--amber)}
+.v-not_tied{border-left-color:var(--debit);background:var(--debit-bg)}
+.v-not_tied .name{color:var(--debit)}
+
+/* blocks */
+.block{display:flex;flex-direction:column;gap:.8rem}
+.block > h3{font-family:var(--serif);font-size:1.1rem;margin:0;
+  border-top:1px solid var(--rule-firm);padding-top:.7rem}
+.ident{font-family:var(--mono);font-size:.9rem;color:var(--ink-soft)}
+
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:.45rem .6rem;border-bottom:1px solid var(--rule);
+  vertical-align:top}
+thead th{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);font-weight:500;
+  border-bottom:1px solid var(--rule-firm);white-space:nowrap}
+td.n,th.n{text-align:right;font-family:var(--mono);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.scroll{overflow-x:auto}
+tbody tr.recovered{background:var(--amber-bg)}
+
+.pill{display:inline-block;font-family:var(--mono);font-size:.68rem;
+  letter-spacing:.05em;text-transform:uppercase;padding:.08rem .4rem;
+  border:1px solid currentColor}
+.p-ok{color:var(--credit)} .p-fail{color:var(--debit)} .p-na{color:var(--muted)}
+
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:1rem}
+.figure{border:1px solid var(--rule);padding:.8rem 1rem;display:flex;
+  flex-direction:column;gap:.2rem}
+.figure .label{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}
+.figure .value{font-family:var(--mono);font-size:1.15rem;
+  font-variant-numeric:tabular-nums}
+.figure .note{font-size:.82rem;color:var(--muted)}
+.figure.warn{border-color:var(--amber);background:var(--amber-bg)}
+.figure.bad{border-color:var(--debit);background:var(--debit-bg)}
+
+ol.steps{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.4rem}
+ol.steps li{font-size:.95rem}
+
+.exception{border:1px solid var(--rule);border-left-width:4px;padding:.7rem .9rem;
+  display:flex;flex-direction:column;gap:.25rem}
+.exception.mine{border-left-color:var(--amber)}
+.exception.doc{border-left-color:var(--debit)}
+.exception.open{border-left-color:var(--muted)}
+.exception .kind{font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}
+.exception .what{font-size:.93rem}
+.exception .do{font-size:.88rem;color:var(--ink-soft)}
+.exception .where{font-family:var(--mono);font-size:.78rem;color:var(--accent)}
+.stack{display:flex;flex-direction:column;gap:.6rem}
+
+details.period{border:1px solid var(--rule-firm);background:var(--sunk)}
+details.period > summary{cursor:pointer;padding:.7rem 1rem;font-family:var(--mono);
+  font-size:.88rem;display:flex;gap:.8rem;align-items:baseline;flex-wrap:wrap}
+details.period > summary::-webkit-details-marker{display:none}
+details.period > summary::before{content:"▸";color:var(--accent)}
+details.period[open] > summary::before{content:"▾"}
+details.period .body{padding:0 1rem 1.2rem;display:flex;flex-direction:column;gap:1.2rem}
+.hidden{display:none!important}
+.foot{border-top:1px solid var(--rule);padding-top:.9rem;font-size:.85rem;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Bank reconciliation · workpaper</div>
+    <h1>Statement Tie-Out</h1>
+    <p class="lede">Upload a bank statement. It is reconciled against its own printed
+      totals, and what comes back is the workpaper: what is proven, what is an
+      exception, whose exception it is, and what to do next.</p>
+  </header>
+
+  <div class="dropzone" id="drop">
+    <input type="file" id="file" accept="application/pdf,.pdf" hidden>
+    <button id="pick">Choose a statement</button>
+    <p>or drop a PDF here — scanned statements are read too, and nothing is stored</p>
+  </div>
+
+  <p class="status" id="status" hidden></p>
+
+  <div class="primer" id="primer">
+    <section>
+      <span class="q">First question</span>
+      <h3>Is this the whole population?</h3>
+      <p>Nothing can be sampled from a list that may be incomplete by an unknown
+        amount. Where the statement prints transaction counts, the shortfall is
+        exact; where it does not, the report says the population is unbounded
+        rather than implying it is whole.</p>
+    </section>
+    <section>
+      <span class="q">Second question</span>
+      <h3>Where did each figure come from?</h3>
+      <p>Every transaction carries the page and line it was read from, and every
+        summary field records whether it was printed on the statement or derived
+        from the rows.</p>
+    </section>
+    <section>
+      <span class="q">Third question</span>
+      <h3>Whose exception is this?</h3>
+      <p>A residual is either the tool misreading the page or the statement
+        disagreeing with itself. These are separated, because chasing a phantom
+        reconciling item costs a day and booking one is worse.</p>
+    </section>
+  </div>
+
+  <div id="report" class="block hidden"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var drop = document.getElementById("drop");
+  var input = document.getElementById("file");
+  var pick = document.getElementById("pick");
+  var status = document.getElementById("status");
+  var primer = document.getElementById("primer");
+  var report = document.getElementById("report");
+
+  var VERDICT_TITLE = {
+    tied: "Tied",
+    tied_with_notes: "Tied, with notes",
+    exceptions_identified: "Exceptions identified",
+    not_tied: "Not tied"
+  };
+  var KIND_CLASS = {
+    extraction_uncertainty: "mine",
+    statement_inconsistency: "doc",
+    unexplained: "open",
+    none: "open"
+  };
+  var KIND_LABEL = {
+    extraction_uncertainty: "our doubt — not an audit finding",
+    statement_inconsistency: "the statement disagrees with itself",
+    unexplained: "unexplained",
+    none: "note"
+  };
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+
+  function money(value) {
+    if (value === null || value === undefined) return "—";
+    return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function say(text, bad) {
+    status.hidden = false;
+    status.textContent = text;
+    status.className = bad ? "status bad" : "status";
+  }
+
+  pick.addEventListener("click", function () { input.click(); });
+  input.addEventListener("change", function () {
+    if (input.files && input.files[0]) send(input.files[0]);
+  });
+  ["dragenter", "dragover"].forEach(function (name) {
+    drop.addEventListener(name, function (event) {
+      event.preventDefault(); drop.classList.add("over");
+    });
+  });
+  ["dragleave", "drop"].forEach(function (name) {
+    drop.addEventListener(name, function (event) {
+      event.preventDefault(); drop.classList.remove("over");
+    });
+  });
+  drop.addEventListener("drop", function (event) {
+    var files = event.dataTransfer && event.dataTransfer.files;
+    if (files && files[0]) send(files[0]);
+  });
+
+  function send(file) {
+    var body = new FormData();
+    body.append("file", file);
+    pick.disabled = true;
+    say("Reading " + file.name + " — a scanned statement takes a few seconds a page.");
+    report.classList.add("hidden");
+
+    fetch("/analyse", { method: "POST", body: body })
+      .then(function (response) {
+        return response.json().then(function (data) {
+          if (!response.ok) throw new Error(data.detail || "The file could not be read.");
+          return data;
+        });
+      })
+      .then(function (data) {
+        say(data.filename + " — " + data.result.extraction.latency_s + " s, "
+            + data.result.extraction.llm_calls + " model call(s), $"
+            + data.result.extraction.cost_usd.toFixed(4));
+        primer.classList.add("hidden");
+        render(data);
+      })
+      .catch(function (error) { say(error.message, true); })
+      .finally(function () { pick.disabled = false; });
+  }
+
+  function verdictBanner(audit) {
+    var box = el("div", "verdict v-" + audit.verdict);
+    box.appendChild(el("div", "name", VERDICT_TITLE[audit.verdict] || audit.verdict));
+    box.appendChild(el("h2",
+      audit.periods.length === 1
+        ? "One statement period, " + audit.transactions + " transactions"
+        : audit.periods.length + " statement periods, " + audit.transactions + " transactions"));
+    box.appendChild(el("p", null, audit.periods.length === 1
+      ? audit.periods[0].next_steps[0]
+      : "The file takes the verdict of its weakest period. Each is worked separately below."));
+    return box;
+  }
+
+  function overview(audit) {
+    var block = el("div", "block");
+    block.appendChild(el("h3", null, "Periods"));
+    var scroll = el("div", "scroll");
+    var table = el("table");
+    var head = el("thead");
+    var row = el("tr");
+    ["#", "Account", "Period", "Verdict", "Rows", "Residual", "Population"].forEach(function (name, i) {
+      var cell = el("th", i >= 4 ? "n" : null, name);
+      row.appendChild(cell);
+    });
+    head.appendChild(row);
+    table.appendChild(head);
+
+    var body = el("tbody");
+    audit.periods.forEach(function (period) {
+      var line = el("tr");
+      line.appendChild(el("td", null, period.index));
+      line.appendChild(el("td", null, (period.bank || "—") + " ····" + (period.account_last4 || "????")));
+      line.appendChild(el("td", null, (period.period_start || "?") + " → " + (period.period_end || "?")));
+      var verdict = el("td");
+      verdict.appendChild(el("span", "pill " + (period.verdict === "tied" ? "p-ok"
+        : period.verdict === "not_tied" ? "p-fail" : "p-na"),
+        VERDICT_TITLE[period.verdict] || period.verdict));
+      line.appendChild(verdict);
+      line.appendChild(el("td", "n", period.transactions));
+      line.appendChild(el("td", "n", money(period.residual)));
+      line.appendChild(el("td", "n", period.completeness.bounded ? "bounded" : "unbounded"));
+      body.appendChild(line);
+    });
+    table.appendChild(body);
+    scroll.appendChild(table);
+    block.appendChild(scroll);
+    return block;
+  }
+
+  function figures(period) {
+    var split = el("div", "split");
+
+    var residual = el("div", "figure" + (period.residual === 0 ? "" : " warn"));
+    residual.appendChild(el("span", "label", "Residual"));
+    residual.appendChild(el("span", "value", money(period.residual)));
+    residual.appendChild(el("span", "note",
+      "beginning + deposits − withdrawals − ending"));
+    split.appendChild(residual);
+
+    var mine = el("div", "figure" + (period.extraction_uncertainty === 0 ? "" : " warn"));
+    mine.appendChild(el("span", "label", "Our doubt"));
+    mine.appendChild(el("span", "value", money(period.extraction_uncertainty)));
+    mine.appendChild(el("span", "note", "the tool misread the page — not an audit finding"));
+    split.appendChild(mine);
+
+    var doc = el("div", "figure" + (period.statement_inconsistency === 0 ? "" : " bad"));
+    doc.appendChild(el("span", "label", "Statement disagrees"));
+    doc.appendChild(el("span", "value", money(period.statement_inconsistency)));
+    doc.appendChild(el("span", "note", "the document does not agree with itself"));
+    split.appendChild(doc);
+
+    return split;
+  }
+
+  function completeness(period) {
+    var block = el("div", "block");
+    block.appendChild(el("h3", null, "Completeness of the population"));
+    block.appendChild(el("p", null, period.completeness.statement));
+    if (period.completeness.bounded) {
+      var scroll = el("div", "scroll");
+      var table = el("table");
+      var head = el("thead");
+      var row = el("tr");
+      ["", "Printed on the statement", "Found", "Short by"].forEach(function (name, i) {
+        row.appendChild(el("th", i ? "n" : null, name));
+      });
+      head.appendChild(row);
+      table.appendChild(head);
+      var body = el("tbody");
+      [["Deposits", "printed_deposits", "parsed_deposits", "missing_deposits"],
+       ["Withdrawals", "printed_withdrawals", "parsed_withdrawals", "missing_withdrawals"]
+      ].forEach(function (spec) {
+        var line = el("tr");
+        line.appendChild(el("td", null, spec[0]));
+        line.appendChild(el("td", "n", period.completeness[spec[1]]));
+        line.appendChild(el("td", "n", period.completeness[spec[2]]));
+        line.appendChild(el("td", "n", period.completeness[spec[3]]));
+        body.appendChild(line);
+      });
+      table.appendChild(body);
+      scroll.appendChild(table);
+      block.appendChild(scroll);
+    }
+    return block;
+  }
+
+  function checks(reconciliation) {
+    var block = el("div", "block");
+    block.appendChild(el("h3", null, "The six checks"));
+    var scroll = el("div", "scroll");
+    var table = el("table");
+    var body = el("tbody");
+    Object.keys(reconciliation.checks).forEach(function (name) {
+      var state = reconciliation.checks[name];
+      var line = el("tr");
+      var verdict = el("td");
+      verdict.appendChild(el("span",
+        "pill " + (state === "ok" ? "p-ok" : state === "fail" ? "p-fail" : "p-na"), state));
+      line.appendChild(verdict);
+      line.appendChild(el("td", null, name));
+      body.appendChild(line);
+    });
+    table.appendChild(body);
+    scroll.appendChild(table);
+    block.appendChild(scroll);
+    return block;
+  }
+
+  function steps(period) {
+    var block = el("div", "block");
+    block.appendChild(el("h3", null, "What to do next"));
+    var list = el("ol", "steps");
+    period.next_steps.forEach(function (step) { list.appendChild(el("li", null, step)); });
+    block.appendChild(list);
+    return block;
+  }
+
+  function exceptions(period) {
+    if (!period.exceptions.length) return null;
+    var block = el("div", "block");
+    block.appendChild(el("h3", null, "Exceptions (" + period.exceptions.length + ")"));
+    var stack = el("div", "stack");
+    period.exceptions.forEach(function (item) {
+      var card = el("div", "exception " + (KIND_CLASS[item.kind] || "open"));
+      card.appendChild(el("span", "kind", KIND_LABEL[item.kind] || item.kind));
+      card.appendChild(el("span", "what", item.description));
+      card.appendChild(el("span", "do", item.action));
+      if (item.page) card.appendChild(el("span", "where", "page " + item.page));
+      stack.appendChild(card);
+    });
+    block.appendChild(stack);
+    return block;
+  }
+
+  function ledger(source) {
+    var block = el("div", "block");
+    block.appendChild(el("h3", null, "Transactions (" + source.transactions.length + ")"));
+    var scroll = el("div", "scroll");
+    var table = el("table");
+    var head = el("thead");
+    var row = el("tr");
+    ["Date", "Description", "Deposit", "Withdrawal", "Page", "Line"].forEach(function (name, i) {
+      row.appendChild(el("th", i >= 2 ? "n" : null, name));
+    });
+    head.appendChild(row);
+    table.appendChild(head);
+    var body = el("tbody");
+    source.transactions.forEach(function (item) {
+      var line = el("tr", item.recovered ? "recovered" : null);
+      line.appendChild(el("td", "n", item.date));
+      var what = el("td", null, item.description);
+      if (item.recovered) {
+        what.appendChild(document.createTextNode(" "));
+        what.appendChild(el("span", "pill p-na", "amount inferred"));
+      }
+      line.appendChild(what);
+      line.appendChild(el("td", "n", item.deposit === null ? "" : money(item.deposit)));
+      line.appendChild(el("td", "n", item.withdrawal === null ? "" : money(item.withdrawal)));
+      line.appendChild(el("td", "n", item.page === null ? "—" : item.page));
+      line.appendChild(el("td", "n", item.line === null ? "—" : item.line));
+      body.appendChild(line);
+    });
+    table.appendChild(body);
+    scroll.appendChild(table);
+    block.appendChild(scroll);
+    return block;
+  }
+
+  function periodDetail(period, source) {
+    var box = el("details", "period");
+    if (period.verdict !== "tied") box.open = true;
+    var head = el("summary");
+    head.appendChild(el("span", null, "Period " + period.index));
+    head.appendChild(el("span", null, (period.period_start || "?") + " → " + (period.period_end || "?")));
+    head.appendChild(el("span", "pill " + (period.verdict === "tied" ? "p-ok"
+      : period.verdict === "not_tied" ? "p-fail" : "p-na"),
+      VERDICT_TITLE[period.verdict] || period.verdict));
+    head.appendChild(el("span", null, period.transactions + " rows"));
+    box.appendChild(head);
+
+    var body = el("div", "body");
+    body.appendChild(figures(period));
+    body.appendChild(steps(period));
+    body.appendChild(completeness(period));
+    var found = exceptions(period);
+    if (found) body.appendChild(found);
+    body.appendChild(checks(source.reconciliation));
+    body.appendChild(ledger(source));
+    box.appendChild(body);
+    return box;
+  }
+
+  function render(data) {
+    report.textContent = "";
+    report.classList.remove("hidden");
+    report.appendChild(verdictBanner(data.audit));
+
+    var identity = el("p", "ident",
+      (data.result.account.bank || "bank not recognised")
+      + "  ·  account ····" + (data.result.account.account_last4 || "????")
+      + "  ·  " + (data.result.account.period.start || "?")
+      + " → " + (data.result.account.period.end || "?"));
+    report.appendChild(identity);
+
+    if (data.audit.periods.length > 1) report.appendChild(overview(data.audit));
+
+    var periods = el("div", "stack");
+    data.audit.periods.forEach(function (period, index) {
+      periods.appendChild(periodDetail(period, data.result.periods[index]));
+    });
+    report.appendChild(periods);
+
+    if (data.result.extraction.warnings.length) {
+      var foot = el("div", "foot");
+      foot.appendChild(el("strong", null, "Notes from the extraction"));
+      var list = el("ul");
+      data.result.extraction.warnings.forEach(function (warning) {
+        list.appendChild(el("li", null, warning));
+      });
+      foot.appendChild(list);
+      report.appendChild(foot);
+    }
+  }
+})();
+</script>
+</body>
+</html>

@@ -72,7 +72,8 @@ class TestThePage:
 
 class TestAnalyse:
     def test_it_returns_both_the_extraction_and_the_audit_view(self, client):
-        response = client.post("/analyse", files={"file": ("s.pdf", b"%PDF-1.4", "application/pdf")})
+        upload = {"file": ("s.pdf", b"%PDF-1.4", "application/pdf")}
+        response = client.post("/analyse", files=upload)
         body = response.json()
         assert response.status_code == 200
         assert body["result"]["summary"]["beginning_balance"] == 1000.0

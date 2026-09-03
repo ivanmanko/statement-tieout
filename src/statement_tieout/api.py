@@ -41,8 +41,13 @@ def extract(pdf_path: str) -> dict:
     return extract_result(pdf_path).model_dump(mode="json")
 
 
-def extract_result(pdf_path: str, *, client: LLMClient | None = None) -> ExtractResult:
-    """As `extract`, but typed — used by the CLI and the eval harness.
+def extract_result(
+    source: str | bytes, *, name: str | None = None, client: LLMClient | None = None
+) -> ExtractResult:
+    """As `extract`, but typed — used by the CLI, the harness and the web layer.
+
+    `source` is a path or the bytes of an uploaded file; `name` labels it in
+    the log line when there is no path to take one from.
 
     `client` is injected by tests; in normal use it comes from the
     environment and is None when nothing is configured, which is the
@@ -50,7 +55,8 @@ def extract_result(pdf_path: str, *, client: LLMClient | None = None) -> Extract
     """
     started = time.monotonic()
     client = client if client is not None else build_client()
-    pages = load_pages(pdf_path)
+    label = name or (Path(source).name if isinstance(source, str) else "uploaded.pdf")
+    pages = load_pages(source)
 
     warnings: list[str] = []
     scanned = [page.number for page in pages if is_scanned(page)]
@@ -87,7 +93,7 @@ def extract_result(pdf_path: str, *, client: LLMClient | None = None) -> Extract
         warnings=warnings,
     )
     result = ExtractResult.from_periods(periods, extraction)
-    _log(pdf_path, pages, scanned, result)
+    _log(label, pages, scanned, result)
     return result
 
 
@@ -255,12 +261,12 @@ def _split_at_first_row(lines: list[list[Word]]) -> tuple[list[list[Word]], list
     return lines, []
 
 
-def _log(pdf_path: str, pages: list[Page], scanned: list[int], result: ExtractResult) -> None:
+def _log(name: str, pages: list[Page], scanned: list[int], result: ExtractResult) -> None:
     """One structured line per extraction (SPEC §10)."""
     logger.info(
         json.dumps(
             {
-                "pdf": Path(pdf_path).name,
+                "pdf": name,
                 "pages": len(pages),
                 "scanned_pages": len(scanned),
                 "periods": [

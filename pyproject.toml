@@ -28,12 +28,20 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/statement_tieout"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/statement_tieout/web/page.html" = "statement_tieout/web/page.html"
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares dependencies in argument defaults on purpose; that is the
+# framework's contract, not a mutable-default bug.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Query", "fastapi.Body"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
