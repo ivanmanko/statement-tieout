@@ -10,10 +10,17 @@ codebase knows which one is in use.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
-__all__ = ["Completion", "LLMClient", "Usage", "build_client"]
+__all__ = [
+    "Completion",
+    "LLMClient",
+    "ToolCall",
+    "ToolTurn",
+    "Usage",
+    "build_client",
+]
 
 
 @dataclass(frozen=True)
@@ -56,10 +63,47 @@ class Price:
         ) / 1_000_000
 
 
+@dataclass(frozen=True)
+class ToolCall:
+    """One tool the model wants run, in provider-neutral form."""
+
+    id: str
+    name: str
+    arguments: dict
+
+
+@dataclass(frozen=True)
+class ToolTurn:
+    """A model turn that may ask for tools. `raw` is the provider's own message."""
+
+    text: str = ""
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    raw: object | None = None
+
+    def as_completion(self) -> Completion:
+        return Completion(
+            content=self.text,
+            prompt_tokens=self.prompt_tokens,
+            completion_tokens=self.completion_tokens,
+        )
+
+
 class LLMClient(Protocol):
-    """Ask for one JSON object matching a schema. Sync: `extract()` is sync."""
+    """Sync, because `extract()` is sync.
+
+    The transcript passed to `complete_with_tools` is provider-neutral — a list
+    of `{"role": "user"|"assistant"|"tool", "text": ..., ...}` entries — and
+    each client renders it into its own wire format. That is what lets one
+    repair loop serve every provider (ADR-004).
+    """
 
     def complete_json(self, system: str, user: str, schema: dict) -> Completion: ...
+
+    def complete_with_tools(
+        self, system: str, transcript: list[dict], tools: list[dict]
+    ) -> ToolTurn: ...
 
 
 def build_client() -> LLMClient | None:

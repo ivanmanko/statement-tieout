@@ -1,5 +1,6 @@
 """Reconciliation: the free, deterministic oracle this project is built around."""
 
+from .agent import repair
 from .diagnose import Diagnosis, diagnose
 from .engine import (
     BALANCE_EQUATION,
@@ -11,6 +12,7 @@ from .engine import (
     WITHDRAWALS_TOTAL,
     reconcile,
 )
+from .repair import RepairLedger
 
 __all__ = [
     "BALANCE_EQUATION",
@@ -21,6 +23,8 @@ __all__ = [
     "WITHDRAWALS_COUNT",
     "WITHDRAWALS_TOTAL",
     "Diagnosis",
+    "RepairLedger",
     "diagnose",
     "reconcile",
+    "repair",
 ]
