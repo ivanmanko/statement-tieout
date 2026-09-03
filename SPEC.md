@@ -116,8 +116,19 @@ it, and we climb only on rejection.
    heuristic one.
 8. **Rung 3 — vision transcription** (scanned pages only): transcribe
    **one page at a time**, each page verified locally (§7.16).
-9. **Rung 4 — agentic repair** (bounded): out of scope for this delivery;
-   the interface exists and the README says so.
+9. **Rung 4 — agentic repair** (bounded). Only on a period that still does
+   not reconcile. The model is given the residual, the diagnosis, the printed
+   summary and a set of tools over the parsed rows, and works until the
+   period closes or its budget runs out.
+
+   **Its edits are kept only if the period ends up reconciled.** Otherwise
+   the entire repair is discarded and the deterministic result stands — the
+   same rule as rung 2, and the reason a model may touch transactions here
+   at all. A repair that half-works is a corrupted result that still looks
+   plausible; a repair that is thrown away costs only money.
+
+   The loop is provider-agnostic: it lives above the client, and each
+   provider implements only the wire format for tool calls (ADR-004).
 10. **Assembly.** Emit the result plus one structured JSON log line (§8).
     A period that never reconciled is still returned, with its residual and
     diagnosis — **a failure is reported, never hidden or silently repaired.**
@@ -430,10 +441,23 @@ Everything a developer would otherwise decide silently in code.
     Rung 3 transcribes at most one page per call, and each page's output
     must satisfy either its running-balance chain or a section subtotal
     before it is accepted.
-17. **Bounds:** `max_profile_attempts = 3`; `max_llm_calls_per_statement`
-    and `max_cost_usd_per_statement` are config, enforced in the client, and
-    exceeding either aborts the ladder and returns the best result so far
-    with a warning. Default model `claude-opus-5`, `temperature` unset,
+17. **Bounds:** `max_profile_attempts = 3`; rung 4 stops at
+    `max_repair_turns = 12` or `max_repair_cost_usd = 0.25` per period,
+    whichever comes first, and exceeding either ends the repair and returns
+    the best result so far with a warning. The ceilings are enforced in the
+    loop, before each turn, not hoped for in the prompt.
+
+    **Rung 4 tools**, all of them over the period already parsed — none of
+    them touches a file or a network:
+    `state()` re-runs the six checks and returns them with the residual ·
+    `read_page(n)` returns that page's lines as text ·
+    `find_amount(x)` reports every page whose text shows that money token and
+    whether a parsed row already carries it ·
+    `list_rows(start, end)` returns parsed rows in a window ·
+    `insert_row(date, description, side, amount)` ·
+    `drop_row(index)` · `set_side(index, side)`.
+    Every mutating tool re-runs reconciliation and returns the new state, so
+    the model is told after each move whether it helped. Default model `claude-opus-5`, `temperature` unset,
     structured output enforced server-side by re-validating against the
     `LayoutProfile` schema.
 18. **Account identity** is read from the first page of the period:
