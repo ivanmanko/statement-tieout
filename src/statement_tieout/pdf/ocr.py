@@ -34,9 +34,10 @@ _BOUNDARY = re.compile(
     r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])|(?<=[a-z])(?=[A-Z])|(?<=:)|(?=:)"
 )
 
-#: The one repair (SPEC §7.2): a thousands separator misread as a slash or a
-#: pipe. Nothing but money takes this shape — a date has no `.dd` tail.
-_MISREAD_SEPARATOR = re.compile(r"^\d{1,3}(?:[/|]\d{3})+\.\d{2}$")
+#: The one repair (SPEC §7.2): a thousands separator misread as a slash, a pipe
+#: or a period. The final group must be exactly two digits, which keeps
+#: European notation (1.234,56) and dotted dates (04.01.2025) out of it.
+_MISREAD_SEPARATOR = re.compile(r"^\d{1,3}(?:[/|.]\d{3})+\.\d{2}$")
 
 
 @dataclass(frozen=True)
@@ -84,7 +85,8 @@ def _tokenize(text: str) -> list[str]:
 
 def _repair(token: str) -> str:
     if _MISREAD_SEPARATOR.match(token):
-        return token.replace("/", ",").replace("|", ",")
+        head, _, cents = token.rpartition(".")
+        return f"{head.replace('/', ',').replace('|', ',').replace('.', ',')}.{cents}"
     return token
 
 
