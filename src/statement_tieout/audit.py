@@ -221,10 +221,11 @@ def _where_to_look(deposits: SideCheck, withdrawals: SideCheck) -> str:
         )
     off, half = (money_in, "money in") if money_out == ZERO else (money_out, "payments out")
     agreed = "payments out" if money_out == ZERO else "money in"
-    direction = "short by" if off < ZERO else "over by"
+    direction = "short of" if off < ZERO else "over"
     return (
-        f"The {agreed} agrees with the printed total exactly. The {half} is "
-        f"{direction} {format_money(abs(off))} — look there."
+        f"The {agreed} agrees with the printed total exactly. The whole difference of "
+        f"{format_money(abs(off))} sits among the {half}, which is {direction} the "
+        "printed total — look there."
     )
 
 
@@ -396,7 +397,8 @@ def _next_steps(
     attribution: Attribution,
 ) -> list[str]:
     steps = [verdict.next_step_hint]
-    if verdict is not Verdict.TIED:
+    # Only when it points somewhere: "both sides agree" is reassurance, not an action.
+    if sides.deposits.difference or sides.withdrawals.difference:
         steps.append(sides.statement)
     if not completeness.bounded:
         steps.append(
