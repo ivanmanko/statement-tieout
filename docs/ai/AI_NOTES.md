@@ -159,3 +159,88 @@ no real run to quote a cost or a latency from. Every number in the README came
 from a harness run with no API key configured at all. There are no estimates
 in it, and the sections with no measurement say so rather than quoting a
 target as though it had been met.
+
+## The binder, and what a 99-page scan costs to learn
+
+The last file was 99 scanned pages holding eleven Ixonia Bank statements with
+redacted descriptions. It is the only sample that exercises period
+segmentation, the first that **prints transaction counts** — `+Deposits and
+Credits (81)` — and by a distance the hardest thing here.
+
+It also killed six more assumptions, in the order they surfaced.
+
+**A single bad row killed the whole file.** One row carried a zero amount, the
+output contract requires a strictly positive side, and the resulting
+`ValidationError` aborted a six-minute run. Two rules came out of it: a
+zero-amount row is not a transaction (SPEC §7.12), and a row the contract
+rejects for any other reason costs that row and not the document (§7.14). A
+project whose entire thesis is "a diagnosable partial result beats silence"
+had been returning silence.
+
+**The transaction table's own header was read as a summary block.** `Date
+Description Deposits Withdrawals Balance` carries two summary labels and no
+money, so the horizontal-block reader treated it as a label row and the first
+transaction as its totals — `deposits_total` came back as 1,611.95 instead of
+1,214,254.05. A *wrong* summary is worse than a missing one, and only a
+guard on the value row (it must not open with a date) and on the search scope
+(header only) closed it.
+
+**Segmentation split the file into 26 periods.** The beginning-balance anchor
+fires exactly eleven times, once per statement, which is right. What ruined it
+was the account-number anchor: OCR reads a four-digit number off a scanned
+cheque image, and out of a description reading `TRNSFR TO CHECKING ACCT ENDING
+IN 4623`. Anchors are now ranked — when a beginning-balance line exists
+anywhere in the document, the weaker anchors are ignored (§7.3).
+
+**Pooling every page's amounts destroyed the column statistics.** A binder
+holds cheque images whose money sits nowhere near the statement's columns.
+With them in the same clusters, eleven statements yielded *no usable profile
+at all*. The profile now comes from the single densest table page and is
+applied to the rest (§7.20).
+
+**A daily-balance table was parsed as transactions.** `Apr 01 607,330.75
+Apr 11 521,451.70 …` across the page added **2,920,908.79** of deposits that
+never happened. The rule that catches it needs no vocabulary: date → amount →
+date again is a multi-column summary, while a date *inside* a description has
+no amount separating it from the row's own date (§7.13). It then failed on the
+real page anyway, because `Apr 11` is two words and I had scanned one word at
+a time — the same mistake I had already made and fixed once in the leading-date
+parser.
+
+Residual on the first statement across those fixes: **2,852,036.58 →
+2,852,036.58 → −68,872.21**, with 186 of 192 rows found. It still does not
+reconcile.
+
+## What the model rung actually cost, measured
+
+DeepSeek, `deepseek-v4-flash`, ~$0.05 all in for everything below.
+
+**It did not work at all at first, and the reason was not the prompt.** Three
+calls, $0.011, and an empty answer every time. The model is a *reasoning*
+model: `finish_reason: length`, `reasoning_content` 14,941 characters,
+`content` empty. `max_tokens` covers reasoning and answer together, so raising
+the cap only bought more reasoning — at 2048, 4096 and 8192 alike. With
+`thinking: {"type": "disabled"}`: **84 tokens, 2 seconds, ~$0.0012**. Ten
+times cheaper and fifty times faster, from one parameter.
+
+**The schema was never being sent.** DeepSeek has no strict `json_schema`
+mode, and my client passed only `json_object` — so the model invented its own
+property names (`columns: [...]`). The schema now travels in the prompt, as
+this repository's sibling project already knew and I had not carried over.
+
+**And it answered `MM/DD/YYYY`,** which `strptime` cannot use. A profile that
+validates but parses no dates is worse than a rejected one, so the contract
+now translates human notation or refuses the profile.
+
+**Then it worked, and did not help.** On the Renasant statement and on the
+binder's first period the model returned a valid profile in 2 calls for
+$0.004, the rows it produced did not reconcile, and the escalation **discarded
+it** — exactly as designed. That is the honest measured answer to "does the
+model rung earn its keep here": no, because neither failure is a
+misunderstanding of the layout. Finding that out cost less than half a cent
+and could not corrupt the result, which is the entire argument for putting a
+free verifier in front of a model instead of behind it.
+
+**What I would not have learned any other way:** every one of these six is a
+thing the code did wrong while looking right, and every one was found by
+running it against a file I had not seen. None came from review.
