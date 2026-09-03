@@ -146,3 +146,28 @@ class TestFeedback:
         client = StubClient([VALID_PROFILE])
         profile_from_pages([SAMPLE], client, feedback="deposits_total off by -1,240.50")
         assert "1,240.50" in client.calls[0]["user"]
+
+
+class TestSampleChoice:
+    """The sample must show the model a table, not whatever page has most words.
+
+    Measured: on the Renasant statement the densest page by word count is the
+    reconcilement form on the back, and the model spent its whole budget
+    reasoning about which page it had been given.
+    """
+
+    def test_the_densest_table_page_is_preferred_over_the_wordiest(self):
+        form = page(
+            *[line(60.0 + i * 12.0, (DESC_X, f"SOME LONG PROSE LINE NUMBER {i} HERE"))
+              for i in range(30)],
+            number=2,
+        )
+        table = rows_page(
+            *[(f"01/{i + 10}/2025", "TXN", "10.00", "1,000.00") for i in range(8)],
+        )
+        table = page(*table.lines(), number=3)
+        client = StubClient([VALID_PROFILE])
+        profile_from_pages([page(line(60.0, (DESC_X, "COVER")), number=1), form, table], client)
+        prompt = client.calls[0]["user"]
+        assert "--- page 3 ---" in prompt
+        assert "--- page 2 ---" not in prompt
