@@ -82,8 +82,8 @@ class TestCompleteness:
 
     def test_a_shortfall_is_quantified(self):
         short = rows(("d", "100.00"), ("w", "50.00"))
-        report = audit(result(summary(), short,
-                              Reconciliation(reconciled=False, checks={}, residual=Decimal("-200.00"))))
+        short_result = Reconciliation(reconciled=False, checks={}, residual=Decimal("-200.00"))
+        report = audit(result(summary(), short, short_result))
         completeness = report.periods[0].completeness
         assert completeness.missing_deposits == 1
         assert completeness.missing_withdrawals == 0

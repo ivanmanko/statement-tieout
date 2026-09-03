@@ -10,6 +10,9 @@ dependencies = [
     "anthropic>=0.40",
     "rapidocr-onnxruntime>=1.4",
     "openai>=3.7.0",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.4",
+    "python-multipart>=0.0.32",
 ]
 
 [project.scripts]
