@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
+from pydantic import ValidationError
+
 from ..layout import Column, LayoutProfile, SideStrategy
 from ..layout.dates import MAX_DATE_WORDS, STAND_IN_YEAR, parse_date
 from ..money import ZERO, parse_money
@@ -63,6 +65,7 @@ class _State:
     unsectioned_rows: int = 0
     yearless_rows: int = 0
     zero_rows: int = 0
+    rejected_rows: int = 0
 
     def consume(self, line: list[Word], parsed: ParsedRows) -> None:
         when = self._date_on(line)
@@ -115,14 +118,19 @@ class _State:
             self.unsectioned_rows += 1
             return
 
-        parsed.transactions.append(
-            Transaction(
+        try:
+            transaction = Transaction(
                 date=when,
                 description=self._description_on(line),
                 deposit=abs(amount.value) if side == DEPOSIT else None,
                 withdrawal=abs(amount.value) if side == WITHDRAWAL else None,
             )
-        )
+        except ValidationError:
+            # SPEC §7.13: one malformed row must not cost the whole document.
+            self.rejected_rows += 1
+            return
+
+        parsed.transactions.append(transaction)
         if balance is not None:
             parsed.balances.append(balance)
             self.previous_balance = balance
@@ -217,6 +225,11 @@ class _State:
             parsed.warnings.append(
                 f"{self.zero_rows} row(s) carried a zero amount and were skipped: they move "
                 "no money, and every transaction must carry one positive side"
+            )
+        if self.rejected_rows:
+            parsed.warnings.append(
+                f"{self.rejected_rows} row(s) were rejected by the output contract and "
+                "skipped; reconciliation is what reports the loss"
             )
         if self.yearless_rows:
             parsed.warnings.append(
