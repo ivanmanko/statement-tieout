@@ -25,7 +25,7 @@ __all__ = [
 
 @dataclass(frozen=True)
 class Completion:
-    """Raw content plus the token counts the cost model is built on (SPEC §8)."""
+    """Raw content plus the token counts the cost model is built on (SPEC §10)."""
 
     content: str
     prompt_tokens: int = 0

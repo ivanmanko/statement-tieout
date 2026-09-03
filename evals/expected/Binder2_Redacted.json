@@ -23,5 +23,5 @@
       "transactions_count": 192
     }
   ],
-  "notes": "Held out from tuning (SPEC §10.1). 99 scanned pages, several statements concatenated — the only sample that exercises period segmentation. Also the first sample that PRINTS transaction counts, so the deposits_count / withdrawals_count checks are available on it and the residual diagnosis can identify a failing row rather than only propose one. Descriptions are redacted with black bars, which OCR reads as nothing."
+  "notes": "Held out from tuning (SPEC §12.1). 99 scanned pages, several statements concatenated — the only sample that exercises period segmentation. Also the first sample that PRINTS transaction counts, so the deposits_count / withdrawals_count checks are available on it and the residual diagnosis can identify a failing row rather than only propose one. Descriptions are redacted with black bars, which OCR reads as nothing."
 }

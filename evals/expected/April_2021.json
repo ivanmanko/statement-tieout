@@ -16,5 +16,5 @@
     "withdrawals_total": 4384606.59
   },
   "periods": 1,
-  "notes": "Held out from tuning (SPEC §10.1). Fifteen scanned pages with no text layer, read by the OCR ingest backend. Prints its summary as a horizontal label row over a value row, sets its logo at 18.4pt beside a 10.4pt address, and OCRs its P.O. box as 'P.O.B 0 x 4887'. No transaction count is recorded because the statement prints none and counting 284 rows by eye would not be independent evidence."
+  "notes": "Held out from tuning (SPEC §12.1). Fifteen scanned pages with no text layer, read by the OCR ingest backend. Prints its summary as a horizontal label row over a value row, sets its logo at 18.4pt beside a 10.4pt address, and OCRs its P.O. box as 'P.O.B 0 x 4887'. No transaction count is recorded because the statement prints none and counting 284 rows by eye would not be independent evidence."
 }

@@ -26,7 +26,7 @@ rules bind every change an agent makes here.
   bank name, a filename, or a sample's page count. Generalization to unseen
   statements is a third of the grade; a parser that recognizes our four files
   scores zero on it.
-- **Heuristics are tuned on the tuning file only** (SPEC §10.1). Every other
+- **Heuristics are tuned on the tuning file only** (SPEC §12.1). Every other
   sample is held out. Do not look at a held-out file to choose a threshold.
 - **A failure is reported, never hidden.** A period that does not reconcile
   is returned with its residual, its failing checks and a diagnosis. A check
@@ -52,7 +52,13 @@ rules bind every change an agent makes here.
 
 ## Scope
 
-Do not add features beyond SPEC (HTTP API, UI, categorization, persistence,
-batch processing). Cut scope is recorded in README, not silently implemented.
+Do not add features beyond SPEC (categorization, persistence, batch
+processing). Cut scope is recorded in README, not silently implemented.
+
+The HTTP interface and the audit view **are** in scope as of 2026-09-03
+(SPEC §1, §8, §9): the buyer is an audit firm, and a reconciliation nobody can
+hand to a reviewer is not a workpaper. The interface presents `ExtractResult`
+and computes nothing of its own — a second source of truth for any number
+would be the same defect as a hidden heuristic.
 Samples live in `samples/` and are gitignored — never commit a statement PDF.
 Secrets exist only in the environment.

@@ -135,7 +135,7 @@ class PeriodResult(BaseModel):
 
 
 class Extraction(BaseModel):
-    """How the answer was produced, for the cost story and the log line (SPEC §8)."""
+    """How the answer was produced, for the cost story and the log line (SPEC §10)."""
 
     path: str = "deterministic"
     llm_calls: int = 0

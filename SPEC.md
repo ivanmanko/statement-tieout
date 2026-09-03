@@ -15,11 +15,20 @@ reconciles**, per period, with the residual when it does not.
 
 **In scope:** `extract(pdf_path: str) -> dict`; a CLI around it; multi-period
 statements (several statements concatenated in one file); a reconciliation
-report; an eval harness.
+report; an eval harness; **an audit view and a single-page interface that
+renders it** (§8, §9).
 
-**Out of scope** (cut consciously, recorded in README): HTTP API and UI,
-transaction categorization, description normalization, batch directory
-processing, persistence, non-PDF inputs.
+**Out of scope** (cut consciously, recorded in README): transaction
+categorization, description normalization, batch directory processing,
+persistence, non-PDF inputs.
+
+**Scope changed on 2026-09-03.** The HTTP interface was originally cut as
+"really optional" in the assignment's own words. It came back because the
+buyer is an audit firm, and that changes what the product *is*: an auditor
+does not buy extracted rows, they perform a bank reconciliation and must leave
+behind a workpaper that survives review. The reconciliation this project
+already computes **is** that workpaper; what was missing was a way to hand it
+to a person, and two properties an audit workpaper cannot do without (§8).
 
 ## 2. Input
 
@@ -129,7 +138,7 @@ it, and we climb only on rejection.
 
    The loop is provider-agnostic: it lives above the client, and each
    provider implements only the wire format for tool calls (ADR-004).
-10. **Assembly.** Emit the result plus one structured JSON log line (§8).
+10. **Assembly.** Emit the result plus one structured JSON log line (§10).
     A period that never reconciled is still returned, with its residual and
     diagnosis — **a failure is reported, never hidden or silently repaired.**
 
@@ -240,7 +249,7 @@ Everything a developer would otherwise decide silently in code.
 
 1. **No file-specific or bank-specific behavior.** No branch may key on a
    bank name, a filename, or a page count. Heuristics are tuned on the
-   declared tuning file only (§10.1); every other sample is held out.
+   declared tuning file only (§12.1); every other sample is held out.
 2. **Text layer vs scan:** a page is *scanned* when it yields fewer than
    `min_chars_per_text_page = 20` characters. A document is scanned when
    more than half its pages are.
@@ -602,7 +611,61 @@ Everything a developer would otherwise decide silently in code.
        words ("Deposits/Credits", "Checks/Debits") and would otherwise be
        read as section markers.
 
-## 8. Observability
+## 8. The audit view (normative)
+
+An auditor's questions are not an extractor's. Three of them shape this
+section, and each imposes a requirement ordinary extraction does not.
+
+**"Is this the whole population?"** Nothing can be sampled from a list that
+might be incomplete by an unknown amount. The printed transaction counts bound
+it: 81 printed against 79 parsed is an incompleteness of exactly two rows and
+a known sum. Where counts are not printed the population is **unbounded**, and
+the view says so rather than implying completeness. This is the strongest
+thing the system has and it is stated first.
+
+**"Where did this number come from?"** Every transaction carries the **page**
+it was read from and its **line index** on that page, and every summary field
+records whether it was printed or derived (§7.8). A figure that cannot be
+traced to evidence cannot be relied on, however correct it happens to be.
+
+**"Is this exception mine or the client's?"** The residual is decomposed, not
+reported as one number:
+
+- **`extraction_uncertainty`** — the tool's own doubt. Rows it recovered from
+  a balance step, rows it skipped, lines it read as a summary table, and any
+  amount its residual diagnosis names. These are **not** audit findings and
+  must never reach the client.
+- **`substantive_difference`** — what is left once the tool's doubt is
+  accounted for. This is a genuine reconciling item and the only part that is
+  audit evidence.
+
+Conflating the two is the failure mode this section exists to prevent: an
+auditor who chases a phantom reconciling item wastes a day, and one who books
+an adjustment against it has put an extraction defect into a client's
+accounts.
+
+**Verdict per period**, from those three:
+
+| verdict | meaning | what happens next |
+|---|---|---|
+| `tied` | reconciled, population bounded | the workpaper is complete |
+| `exceptions_identified` | not reconciled, but every discrepancy is named and quantified | review the named items |
+| `not_tied` | not reconciled and the residual is not explained | re-perform by hand |
+
+## 9. The interface (normative)
+
+One page. A statement is uploaded, and the audit view of §8 is rendered on
+the same page: the verdict, the completeness statement, the decomposed
+residual, the exceptions with their page references, and the transactions with
+theirs.
+
+It is a **presentation of `ExtractResult`, never a second source of truth** —
+every number it shows comes from the same structure the CLI prints, and it
+computes nothing of its own. Uploaded files are held in memory for the
+duration of the request and never written to disk: statements are client data.
+
+
+## 10. Observability
 
 One structured JSON log line per `extract()` call: `pdf`, `pages`,
 `scanned_pages`, `periods`, per period `{rows, side_strategy, checks,
@@ -610,7 +673,7 @@ residual, diagnosis}`, `rung` reached, `llm_calls`, `prompt_tokens`,
 `completion_tokens`, `cost_usd`, `latency_ms` by stage, `warnings`. This line
 is the debugging story for "this statement came out wrong".
 
-## 9. Non-functional targets
+## 11. Non-functional targets
 
 - Text-layer statement, rung 0: **< 5 s** and **$0.00** — no network call.
 - Rung 2 adds one LLM call per statement, not per row or per page.
@@ -618,9 +681,9 @@ is the debugging story for "this statement came out wrong".
   as a whole into memory beyond what `pdfplumber` requires per page.
 - Targets are restated in the README **as measured**, including misses.
 
-## 10. Acceptance criteria
+## 12. Acceptance criteria
 
-### 10.1 Tuning vs held-out
+### 12.1 Tuning vs held-out
 
 **Tuning file (heuristics may be tuned on it):**
 `Great Lakes Commerce Bank - x4071 - 2025-01.pdf`.
@@ -632,7 +695,7 @@ public statement used for the generalization check. Their pass rate therefore
 because generalization to unseen statements is a third of the grade; a
 parser tuned on all four files would score itself.
 
-### 10.2 Definition of done
+### 12.2 Definition of done
 
 The CLI exits **0** when every period reconciled, **1** when one did not
 (the result is still printed in full), and **2** when the file could not be

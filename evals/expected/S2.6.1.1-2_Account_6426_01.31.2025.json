@@ -16,5 +16,5 @@
   },
   "periods": 1,
   "transactions_count": 10,
-  "notes": "Held out from tuning (SPEC §10.1). Four scanned pages, read by OCR. The hardest of the samples: sections rather than columns (CHECKS / OTHER DEBITS / CREDITS), yearless MM-DD dates, and a CHECKS section that prints TWO transactions per line (NUMBER DATE AMOUNT NUMBER DATE AMOUNT). The row model reads one transaction per line, so those are missed — recorded here as a real gap rather than smoothed over."
+  "notes": "Held out from tuning (SPEC §12.1). Four scanned pages, read by OCR. The hardest of the samples: sections rather than columns (CHECKS / OTHER DEBITS / CREDITS), yearless MM-DD dates, and a CHECKS section that prints TWO transactions per line (NUMBER DATE AMOUNT NUMBER DATE AMOUNT). The row model reads one transaction per line, so those are missed — recorded here as a real gap rather than smoothed over."
 }

@@ -33,7 +33,7 @@ One period, `Date | Description | Amount | Balance`, a single **signed**
 amount column, and a running-balance column with an unbroken chain across all
 292 rows. Deposits sum to the printed total exactly; so do withdrawals; the
 balance equation closes to the cent. It is the easy case by construction, and
-it is the only file heuristics are tuned on (SPEC §10.1).
+it is the only file heuristics are tuned on (SPEC §12.1).
 
 ## Corrections the tests forced
 
@@ -268,7 +268,7 @@ read both pages — and stopped **without making a single edit**. It inspected
 the evidence and declined to guess.
 
 **And here is the temptation I did not take.** I could have kept editing the
-system prompt until that file passed. It is a *held-out* sample (SPEC §10.1).
+system prompt until that file passed. It is a *held-out* sample (SPEC §12.1).
 Tuning against it would have bought a number in the README and destroyed the
 only thing that number was worth: evidence about statements nobody has tuned
 for. The whole reason to declare a tuning file on day one is to have something

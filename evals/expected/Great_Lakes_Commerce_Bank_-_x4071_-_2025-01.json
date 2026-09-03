@@ -19,5 +19,5 @@
   },
   "periods": 1,
   "transactions_count": 292,
-  "notes": "The tuning file (SPEC §10.1). The statement prints totals but no transaction counts, so deposits_count / withdrawals_count are derived by the extractor and the two count checks report `unavailable`."
+  "notes": "The tuning file (SPEC §12.1). The statement prints totals but no transaction counts, so deposits_count / withdrawals_count are derived by the extractor and the two count checks report `unavailable`."
 }

@@ -180,7 +180,7 @@ API call on any of them.
 exactly** — on all four files. The only mismatches anywhere are two
 transaction counts and one bank name (`RENASANT` against `RENASANT BANK`).
 
-**Great Lakes** — the tuning file (SPEC §10.1). Every ground-truth field
+**Great Lakes** — the tuning file (SPEC §12.1). Every ground-truth field
 exact. One signed amount column plus a running balance.
 
 **April 2021** — held out. Fifteen scanned pages, a *horizontal* summary block
@@ -237,7 +237,7 @@ than intended:
   keys on a bank name, a filename, or a page count. The layout profile is the
   only thing that varies between statements, and it is data.
 - **Heuristics were tuned on one file only.** Great Lakes is the declared
-  tuning file; every other sample is held out (SPEC §10.1), so its result
+  tuning file; every other sample is held out (SPEC §12.1), so its result
   *measures* the heuristics instead of confirming them.
 
 The parser is tested against four different ways a statement can mark which
@@ -358,7 +358,7 @@ invented rows.
 Neither failure is a misunderstanding of the layout, and neither is a single
 lost row an agent can locate: Renasant needs a row model that reads two
 transactions from one line. **The prompt was deliberately not tuned until the
-file passed** — it is a held-out sample (SPEC §10.1), and tuning against it
+file passed** — it is a held-out sample (SPEC §12.1), and tuning against it
 would make its result meaningless as a measurement.
 
 What this does establish is the shape: the model is reached only after a free

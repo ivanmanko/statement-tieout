@@ -2,7 +2,7 @@
 
     uv run python evals/run_evals.py [--samples samples] [--report evals/reports/local.json]
 
-This is the acceptance gate (SPEC §10.2). Two things are checked, and they are
+This is the acceptance gate (SPEC §12.2). Two things are checked, and they are
 independent:
 
 * **Against ground truth** — `evals/expected/<stem>.json`, where a human read

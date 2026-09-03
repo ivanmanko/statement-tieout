@@ -480,3 +480,49 @@ class TestBalanceStepRecovery:
     def test_without_a_previous_balance_nothing_is_recovered(self):
         p = page(line(100.0, (DATE_X, "01/01/2025"), (BALANCE_X, "1,250.00")))
         assert parse_rows([p], profile()).transactions == []
+
+
+class TestProvenance:
+    """SPEC §8 — a figure that cannot be traced to evidence cannot be relied on.
+
+    An auditor referencing a workpaper has to get from a line in the output
+    back to the place on the page it was read from.
+    """
+
+    def two_pages(self):
+        first = page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "A"), (LEFT_X, "10.00"),
+                 (BALANCE_X, "1,010.00")),
+            line(112.0, (DATE_X, "01/02/2025"), (DESC_X, "B"), (LEFT_X, "-4.00"),
+                 (BALANCE_X, "1,006.00")),
+        )
+        second = page(
+            line(100.0, (DATE_X, "01/03/2025"), (DESC_X, "C"), (LEFT_X, "6.00"),
+                 (BALANCE_X, "1,012.00")),
+            number=2,
+        )
+        return [first, second]
+
+    def test_each_row_carries_the_page_it_came_from(self):
+        parsed = parse_rows(self.two_pages(), profile())
+        assert [t.page for t in parsed.transactions] == [1, 1, 2]
+
+    def test_each_row_carries_its_line_on_that_page(self):
+        parsed = parse_rows(self.two_pages(), profile())
+        assert [t.line for t in parsed.transactions] == [0, 1, 0]
+
+    def test_a_recovered_row_is_marked_as_such(self):
+        """SPEC §8: the tool's own doubt must be separable from a real difference."""
+        p = page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "REAL"), (LEFT_X, "100.00"),
+                 (BALANCE_X, "1,100.00")),
+            line(112.0, (DATE_X, "01/02/2025"), (BALANCE_X, "1,050.00")),
+        )
+        parsed = parse_rows([p], profile(), opening_balance=Decimal("1000.00"))
+        assert [t.recovered for t in parsed.transactions] == [False, True]
+
+    def test_provenance_survives_serialization(self):
+        parsed = parse_rows(self.two_pages(), profile())
+        dumped = parsed.transactions[2].model_dump(mode="json")
+        assert dumped["page"] == 2
+        assert dumped["line"] == 0

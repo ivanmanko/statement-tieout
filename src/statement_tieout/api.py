@@ -256,7 +256,7 @@ def _split_at_first_row(lines: list[list[Word]]) -> tuple[list[list[Word]], list
 
 
 def _log(pdf_path: str, pages: list[Page], scanned: list[int], result: ExtractResult) -> None:
-    """One structured line per extraction (SPEC §8)."""
+    """One structured line per extraction (SPEC §10)."""
     logger.info(
         json.dumps(
             {
