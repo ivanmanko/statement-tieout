@@ -210,6 +210,14 @@ While the tool still doubts itself it does not get to blame the paper. An
 auditor who chases a phantom reconciling item loses a day; one who books an
 adjustment against it has put an extraction defect into a client's accounts.
 
+**"Where do I look?"** A residual is a number; an auditor needs a direction.
+Each side is compared with its own printed total, so the report can say which
+half of the page the difference is on. On the Renasant statement it reads:
+*the money in agrees with the printed total exactly; the whole difference of
+749.82 sits among the payments out.* That is half the page eliminated before
+anyone opens the file — and the 749.82 turns out to be two cheques the parser
+cannot read, printed two to a line.
+
 **Verdicts** are `tied`, `tied_with_notes`, `exceptions_identified`,
 `not_tied` — each carrying next steps in the auditor's own terms: which page
 to inspect, which amounts to vouch, whether the population may be sampled at
