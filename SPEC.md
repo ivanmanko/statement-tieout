@@ -442,8 +442,11 @@ Everything a developer would otherwise decide silently in code.
     must satisfy either its running-balance chain or a section subtotal
     before it is accepted.
 17. **Bounds:** `max_profile_attempts = 3`; rung 4 stops at
-    `max_repair_turns = 12` or `max_repair_cost_usd = 0.25` per period,
-    whichever comes first, and exceeding either ends the repair and returns
+    `max_repair_turns = 12` per period or `max_repair_cost_usd = 0.25`
+    **for the whole statement**, whichever comes first. The dollar ceiling is
+    per file rather than per period on purpose: a binder holds eleven
+    statements, and a per-period ceiling would quietly multiply by eleven.
+    Whichever comes first, and exceeding either ends the repair and returns
     the best result so far with a warning. The ceilings are enforced in the
     loop, before each turn, not hoped for in the prompt.
 

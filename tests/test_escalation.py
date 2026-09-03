@@ -136,3 +136,48 @@ class TestNoClientConfigured:
         assert result.reconciliation.reconciled is False
         assert usage.calls == 0
         assert any("profile" in w for w in warnings)
+
+
+class TestRepairRung:
+    """SPEC §4 stage 9 — rung 4 runs last, and only on what is still broken."""
+
+    def broken(self):
+        """Printed totals say 300/50 over three rows; one deposit was never parsed."""
+        header = [
+            line(60.0, (DESC_X, "ACME BANK")),
+            line(72.0, (DESC_X, "Beginning balance"), (LEFT_X, "1,000.00")),
+            line(84.0, (DESC_X, "Total deposits"), (LEFT_X, "300.00")),
+            line(96.0, (DESC_X, "Total withdrawals"), (LEFT_X, "50.00")),
+            line(108.0, (DESC_X, "Ending balance"), (LEFT_X, "1,250.00")),
+        ]
+        ledger = [
+            ("IN A", "100.00", None, "1,100.00"),
+            ("OUT B", None, "50.00", "1,050.00"),
+            ("IN C", "20.00", None, "1,070.00"),
+            ("OUT D", None, "10.00", "1,060.00"),
+            ("IN E", "30.00", None, "1,090.00"),
+            ("OUT F", None, "40.00", "1,050.00"),
+        ]
+        rows = [
+            two_column_row(140.0 + i * 12.0, f"01/0{i + 1}/2025", description,
+                           deposit=deposit, withdrawal=withdrawal, balance=balance)
+            for i, (description, deposit, withdrawal, balance) in enumerate(ledger)
+        ]
+        return page(*header, *rows)
+
+    def test_it_is_not_reached_when_the_period_reconciles(self):
+        client = StubClient()
+        extract_period([reconciling_page()], client)
+        assert client.calls == []
+
+    def test_it_runs_after_rung_2_has_failed(self):
+        """Rung 2 answers nothing usable, so the repair loop gets its turn."""
+        client = StubClient(["{}", "{}", "{}"])
+        _, _, usage = extract_period([self.broken()], client)
+        assert usage.calls > 3  # three profile attempts, then the repair loop
+
+    def test_a_repair_that_does_not_close_the_period_changes_nothing(self):
+        client = StubClient(["{}"] * 20)
+        result, _, _ = extract_period([self.broken()], client)
+        assert result.reconciliation.reconciled is False
+        assert len(result.transactions) == 6
