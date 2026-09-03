@@ -152,3 +152,25 @@ class TestGlyphRepair:
     def test_a_pipe_is_repaired_like_the_letters(self):
         (word,) = words_from_segments([segment("|,234.56", 0.0, 70.0)], scale=1.0)
         assert word.text == "1,234.56"
+
+
+class TestBannerSplitting:
+    """SPEC §7.2 — statements head a section with a run of asterisks.
+
+    Left glued, `****CHECKS****` spans the whole page width and collides with
+    the money columns, so the heading is discarded as a table header.
+    """
+
+    def test_a_banner_is_separated_from_its_word(self):
+        words = words_from_segments([segment("****CHECKS****", 0.0, 140.0)], scale=1.0)
+        assert [w.text for w in words] == ["****", "CHECKS", "****"]
+
+    def test_the_word_lands_where_it_was_printed(self):
+        """Four stars of fourteen characters, so CHECKS starts near two-sevenths in."""
+        words = words_from_segments([segment("****CHECKS****", 0.0, 140.0)], scale=1.0)
+        checks = next(w for w in words if w.text == "CHECKS")
+        assert 35.0 <= checks.x0 <= 45.0
+
+    def test_a_lone_asterisk_run_is_kept(self):
+        (word,) = words_from_segments([segment("*****", 0.0, 50.0)], scale=1.0)
+        assert word.text == "*****"

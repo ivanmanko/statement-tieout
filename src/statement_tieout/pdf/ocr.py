@@ -33,7 +33,8 @@ MIN_OCR_CONFIDENCE = 0.5
 #: Boundaries where a segment is split, in addition to whitespace. A colon is a
 #: field separator that OCR glues to its label (`2024:LASTSTATEMENT`).
 _BOUNDARY = re.compile(
-    r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])|(?<=[a-z])(?=[A-Z])|(?<=:)|(?=:)"
+    r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])|(?<=[a-z])(?=[A-Z])"
+    r"|(?<=:)|(?=:)|(?<=\*)(?!\*)|(?<!\*)(?=\*)"
 )
 
 #: A thousands separator misread as a slash, a pipe or a period (SPEC §7.2).

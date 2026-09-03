@@ -20,3 +20,19 @@ WITHDRAWAL_LABELS = ("total checks/debits", "withdrawals and debits", "checks/de
 #: (SPEC §7.19): the last statement's date opens this period, this one's closes it.
 CYCLE_START_LABEL = "last statement"
 CYCLE_END_LABEL = "this statement"
+
+
+def matches_label(text: str, labels: "tuple[str, ...]") -> bool:
+    """Whether the text carries one of these labels at a word boundary.
+
+    SPEC §7.5: a label glued inside a longer word is not a heading. OCR
+    removes the spaces that would have kept `deposits` out of
+    `FROMDEPOSITSYSTEM`, so the boundary has to be checked explicitly.
+    """
+    import re
+
+    lowered = text.casefold()
+    return any(
+        re.search(rf"(?<![a-z]){re.escape(label)}(?![a-z])", lowered)
+        for label in labels
+    )

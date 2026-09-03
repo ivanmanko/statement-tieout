@@ -290,3 +290,30 @@ class TestProfileComesFromTheDensestTablePage:
         profile = derive_profile([self.noise_page(1), self.table_page(2)])
         assert profile is not None
         assert len(profile.amount_columns) == 2
+
+
+class TestSectionLabelsNeedWordBoundaries:
+    """SPEC §7.5 — a label inside a longer word is not a heading.
+
+    Measured on the Renasant statement: the wrapped description line
+    `TRANSFER FROMDEPOSITSYSTEM` was read as a deposits section, because OCR
+    had removed the spaces that would have kept `deposits` apart.
+    """
+
+    def page_with(self, heading: str):
+        """One heading over a table whose running balance gives it a side strategy."""
+        table = rows_page(
+            ("01/01/2025", "PAYMENT", "10.00", "1,010.00"),
+            ("01/02/2025", "PAYMENT", "20.00", "1,030.00"),
+            ("01/03/2025", "PAYMENT", "30.00", "1,060.00"),
+            ("01/04/2025", "PAYMENT", "40.00", "1,100.00"),
+        )
+        return page(line(88.0, (DESC_X, heading)), *table.lines())
+
+    def test_a_label_glued_inside_a_word_is_not_a_section(self):
+        profile = derive_profile([self.page_with("TRANSFER FROMDEPOSITSYSTEM")])
+        assert profile.deposit_sections == []
+
+    def test_a_label_bounded_by_punctuation_is_a_section(self):
+        profile = derive_profile([self.page_with("*** CREDITS ***")])
+        assert profile.deposit_sections == ["*** CREDITS ***"]

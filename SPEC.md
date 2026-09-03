@@ -257,8 +257,10 @@ Everything a developer would otherwise decide silently in code.
 
    **OCR returns line segments, not words**, and drops spaces
    (`03/31ENDINGBALANCEFROMPRIORSTATEMENT`). A segment is split at
-   whitespace, at digit↔letter boundaries and at lowercase→uppercase
-   boundaries, and its bounding box is divided among the tokens in
+   whitespace, at digit↔letter boundaries, at lowercase→uppercase boundaries
+   and at runs of `*` — banner decoration, which statements use to head a
+   section and which otherwise glues the heading to the full width of the
+   page — and its bounding box is divided among the tokens in
    proportion to their character counts. The positions are approximate;
    they only have to be good enough to assign a token to a column, and
    columns are far apart. Money tokens are never split, because they

@@ -14,7 +14,7 @@ from decimal import Decimal
 from statistics import pstdev
 
 from ..money import parse_money
-from ..parse.labels import DEPOSIT_LABELS, WITHDRAWAL_LABELS
+from ..parse.labels import DEPOSIT_LABELS, WITHDRAWAL_LABELS, matches_label
 from ..pdf.model import Page, Word
 from .dates import DATE_FORMATS, MAX_DATE_WORDS, YEARLESS_FORMATS, parse_date
 from .profile import Column, LayoutProfile, SideStrategy
@@ -192,10 +192,9 @@ def _classify_headings(
         if any(_overlaps(word, columns) for word in line):
             continue
         heading = " ".join(word.text for word in line)
-        normalized = " ".join(heading.split()).casefold()
-        if any(label in normalized for label in DEPOSIT_LABELS):
+        if matches_label(heading, DEPOSIT_LABELS):
             deposits.append(heading)
-        elif any(label in normalized for label in WITHDRAWAL_LABELS):
+        elif matches_label(heading, WITHDRAWAL_LABELS):
             withdrawals.append(heading)
     return deposits, withdrawals
 
