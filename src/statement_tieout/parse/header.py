@@ -114,7 +114,9 @@ def read_header(
     header, body = _as_lines(header_lines), _as_lines(body_lines)
     reading = HeaderReading(account=_read_account(header))
 
-    horizontal = _horizontal_block(header) or _horizontal_block(body)
+    # Header only: a horizontal block sits above the first transaction row by
+    # definition, and searching the body finds the table's own column header.
+    horizontal = _horizontal_block(header)
     for field, labels in LABELS.items():
         if field in horizontal:
             setattr(reading, field, horizontal[field])
@@ -219,6 +221,8 @@ def _horizontal_block(lines: Sequence[_Line]) -> dict[str, Decimal]:
 def _next_value_row(lines: Sequence[_Line], index: int) -> list[Word] | None:
     """The following line carrying several amounts is the label row's values."""
     for line in lines[index + 1 : index + 3]:
+        if starts_with_date(line.text):
+            continue  # a transaction row, not the totals under a label row
         amounts = [word for word in line.words if find_money(word.text)]
         if len(amounts) >= MIN_LABELS_IN_A_ROW:
             return amounts
