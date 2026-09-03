@@ -317,3 +317,8 @@ class TestSectionLabelsNeedWordBoundaries:
     def test_a_label_bounded_by_punctuation_is_a_section(self):
         profile = derive_profile([self.page_with("*** CREDITS ***")])
         assert profile.deposit_sections == ["*** CREDITS ***"]
+
+    def test_a_label_glued_to_the_following_word_still_counts(self):
+        """OCR prints `Beginning Balance asof` on one page and `Balanceasof` on the next."""
+        profile = derive_profile([self.page_with("CREDITSandother")])
+        assert profile.deposit_sections == ["CREDITSandother"]

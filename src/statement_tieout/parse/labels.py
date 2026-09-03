@@ -28,11 +28,13 @@ def matches_label(text: str, labels: "tuple[str, ...]") -> bool:
     SPEC §7.5: a label glued inside a longer word is not a heading. OCR
     removes the spaces that would have kept `deposits` out of
     `FROMDEPOSITSYSTEM`, so the boundary has to be checked explicitly.
+
+    Only the leading side is checked. OCR glues the *following* word as often
+    as not — the same statement prints `Beginning Balance asof` on one page
+    and `Beginning Balanceasof` on the next — so requiring a trailing boundary
+    would reject half the real headings.
     """
     import re
 
     lowered = text.casefold()
-    return any(
-        re.search(rf"(?<![a-z]){re.escape(label)}(?![a-z])", lowered)
-        for label in labels
-    )
+    return any(re.search(rf"(?<![a-z]){re.escape(label)}", lowered) for label in labels)

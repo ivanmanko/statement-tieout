@@ -347,6 +347,12 @@ Everything a developer would otherwise decide silently in code.
    constant and this section mirrors it; extending it requires editing both
    in one commit.
 
+   A label must **start** at a word boundary, or the wrapped description
+   `TRANSFER FROMDEPOSITSYSTEM` reads as a deposits heading. Only the leading
+   side is checked: OCR glues the *following* word as often as not, and the
+   same statement prints `Beginning Balance asof` on one page and
+   `Beginning Balanceasof` on the next.
+
    **Two block layouts.** *Vertical* — label and amount on the same line
    (`Beginning balance $2,014,882.47`). *Horizontal* — a row of labels above
    a row of amounts, matched by column:
