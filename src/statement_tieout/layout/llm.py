@@ -26,13 +26,13 @@ from .dates import starts_with_date
 from .profile import LayoutProfile
 
 MAX_SAMPLE_PAGES = 2
-"""SPEC §7.15: a sample, never the table."""
+"""SPEC §7.16: a sample, never the table."""
 
 MAX_SAMPLE_LINES = 25
 """Enough lines to show the shape of a row; far fewer than a page holds."""
 
 MAX_ATTEMPTS = 3
-"""SPEC §7.16."""
+"""SPEC §7.17."""
 
 SYSTEM = """Describe the LAYOUT of a bank statement so a deterministic parser \
 can read its rows. You are shown sample lines as words with horizontal \

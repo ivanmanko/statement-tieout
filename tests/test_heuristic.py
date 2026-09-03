@@ -1,4 +1,4 @@
-"""Heuristic layout profiling — rung 0 of the ladder (SPEC §7.19).
+"""Heuristic layout profiling — rung 0 of the ladder (SPEC §7.20).
 
 This is the rung that costs nothing and the one generalization rests on: it
 derives where the columns are from coordinates alone, and **declines** rather
@@ -59,7 +59,7 @@ class TestSignedLayout:
 
 class TestBalanceColumnIsMeasuredNotAssumed:
     def test_a_rightmost_column_that_is_not_a_running_balance_stays_an_amount(self):
-        """SPEC §7.19.4 — the chain has to actually hold."""
+        """SPEC §7.20.4 — the chain has to actually hold."""
         noisy = rows_page(
             ("01/01/2025", "A", "-10.00", "77.00"),
             ("01/02/2025", "B", "-20.00", "12.00"),
@@ -165,7 +165,7 @@ class TestYearlessDates:
 
 
 class TestColumnsAreFoundByAlignmentNotFrequency:
-    """SPEC §7.19.3 — the rule that a real statement disproved.
+    """SPEC §7.20.3 — the rule that a real statement disproved.
 
     Fulton Bank's April statement is mostly checks: its deposits column
     carries 16% of the rows, its debits column 83%, its balance column 100% —
@@ -213,7 +213,7 @@ class TestColumnsAreFoundByAlignmentNotFrequency:
 
 
 class TestTableHeadersAreNotSectionHeadings:
-    """SPEC §7.19.6 — the column header carries the section vocabulary verbatim."""
+    """SPEC §7.20.6 — the column header carries the section vocabulary verbatim."""
 
     def test_a_header_row_over_the_money_columns_is_not_a_section(self):
         header = line(88.0, (DATE_X, "Date"), (DESC_X, "Description"),
@@ -248,7 +248,7 @@ class TestSectionVocabularyFromRealStatements:
 
 
 class TestProfileComesFromTheDensestTablePage:
-    """SPEC §7.19 — a binder holds pages whose layout is not the table's.
+    """SPEC §7.20 — a binder holds pages whose layout is not the table's.
 
     Measured on the Ixonia binder: pooling money from scanned cheque images
     into the same clusters as the statement's own columns blew the alignment

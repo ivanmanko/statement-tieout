@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date, datetime
 
-#: Candidate formats carrying a year, most specific first. Declared in SPEC §7.17.
+#: Candidate formats carrying a year, most specific first. Declared in SPEC §7.18.
 DATE_FORMATS: tuple[str, ...] = (
     "%m/%d/%Y",
     "%m/%d/%y",

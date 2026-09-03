@@ -126,7 +126,7 @@ class _State:
                 withdrawal=abs(amount.value) if side == WITHDRAWAL else None,
             )
         except ValidationError:
-            # SPEC §7.13: one malformed row must not cost the whole document.
+            # SPEC §7.14: one malformed row must not cost the whole document.
             self.rejected_rows += 1
             return
 
@@ -202,7 +202,7 @@ class _State:
         return found
 
     def _is_description_only(self, line: list[Word]) -> bool:
-        """SPEC §7.13: a continuation carries words only in the description band."""
+        """SPEC §7.15: a continuation carries words only in the description band."""
         return all(
             self.profile.date_column.x1 <= word.center <= self.profile.description_x1
             for word in line

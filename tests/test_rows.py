@@ -145,7 +145,7 @@ class TestNonRowLines:
         assert len(parse_rows([p], profile()).transactions) == 1
 
     def test_a_repeated_header_on_page_two_is_not_swallowed_as_a_continuation(self):
-        """SPEC §7.13: a continuation carries words only in the description band."""
+        """SPEC §7.15: a continuation carries words only in the description band."""
         first = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "A"), (LEFT_X, "10.00"),
                           (BALANCE_X, "1,010.00")))
         second = page(
@@ -274,7 +274,7 @@ class TestZeroAmountRows:
 
 
 class TestOneBadRowDoesNotKillTheDocument:
-    """SPEC §7.13 — a row the contract rejects costs that row, not the file."""
+    """SPEC §7.14 — a row the contract rejects costs that row, not the file."""
 
     def test_a_rejected_row_is_skipped_and_counted(self, monkeypatch):
         import statement_tieout.parse.rows as rows_module
@@ -298,3 +298,37 @@ class TestOneBadRowDoesNotKillTheDocument:
         parsed = parse_rows([p], profile())
         assert [t.description for t in parsed.transactions] == ["GOOD", "ALSO GOOD"]
         assert any("rejected" in w for w in parsed.warnings)
+
+
+class TestMultiColumnSummaryLines:
+    """SPEC §7.13 — a daily-balance table is not a list of transactions.
+
+    Measured on the Ixonia binder: one such table added 2,920,908.79 of
+    deposits that never happened, because each `Apr 11 521,451.70` pair after
+    the first landed in the amount column.
+    """
+
+    def test_date_amount_date_is_rejected(self):
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "607,330.75"),
+                      (200.0, "01/11/2025"), (LEFT_X, "521,451.70"),
+                      (BALANCE_X, "1,010.00")))
+        parsed = parse_rows([p], profile())
+        assert parsed.transactions == []
+
+    def test_a_date_inside_a_description_is_kept(self):
+        """No amount separates it from the row's own date."""
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "PAYABLES 01/15/2025 INVOICE"),
+                      (LEFT_X, "56,378.66"), (BALANCE_X, "1,010.00")))
+        (txn,) = parse_rows([p], profile()).transactions
+        assert txn.deposit == Decimal("56378.66")
+        assert "01/15/2025" in txn.description
+
+    def test_the_rejection_is_reported(self):
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "607,330.75"),
+                      (200.0, "01/11/2025"), (LEFT_X, "521,451.70")))
+        assert any("summary" in w for w in parse_rows([p], profile()).warnings)
+
+    def test_an_ordinary_row_is_untouched(self):
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "ACH MEDTRONIC"),
+                      (LEFT_X, "-17,459.90"), (BALANCE_X, "1,992,427.24")))
+        assert len(parse_rows([p], profile()).transactions) == 1

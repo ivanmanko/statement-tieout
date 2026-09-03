@@ -31,7 +31,7 @@ rules bind every change an agent makes here.
 - **A failure is reported, never hidden.** A period that does not reconcile
   is returned with its residual, its failing checks and a diagnosis. A check
   whose input the statement did not print is `unavailable`, never `ok`.
-- **The model never transcribes what cannot be verified** (SPEC §7.15). It
+- **The model never transcribes what cannot be verified** (SPEC §7.16). It
   returns layout profiles, not rows; page-at-a-time transcription is allowed
   only where a local arithmetic check can accept or reject it.
 
