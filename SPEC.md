@@ -601,6 +601,14 @@ is the debugging story for "this statement came out wrong".
 - Rung 2 adds one LLM call per statement, not per row or per page.
 - Memory: pages are processed one at a time; a 50 MB PDF must not be loaded
   as a whole into memory beyond what `pdfplumber` requires per page.
+- **Scanned pages are read in parallel** when there are at least
+  `min_pages_for_parallel_ocr = 4` of them, across
+  `min(cpu_count, ocr_workers = 4)` processes. Each worker opens the file
+  itself and returns text boxes rather than images, so nothing large crosses
+  a process boundary. Four rather than every core: the OCR runtime is already
+  multi-threaded, and oversubscribing it costs more than it buys. Set
+  `OCR_WORKERS=1` to force the sequential path — results are identical either
+  way, since each page is read independently.
 - Targets are restated in the README **as measured**, including misses.
 
 ## 10. Acceptance criteria
