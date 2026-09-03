@@ -36,13 +36,18 @@ def segment(pages: list[Page]) -> list[list[Page]]:
     anchors = [_anchors_on(page) for page in pages]
     # SPEC §7.3: an anchor on every page is a running header, not a period marker.
     beginning_is_boilerplate = len(pages) > 1 and all(a.beginning for a in anchors)
+    # SPEC §7.3: the strongest anchor is used alone. A beginning-balance line
+    # opens a statement; an account number OCR'd off a cheque image does not.
+    balance_anchors_rule = any(a.beginning for a in anchors) and not beginning_is_boilerplate
 
     groups: list[list[Page]] = [[pages[0]]]
     last4 = anchors[0].last4
     period = anchors[0].period
 
     for page, anchor in zip(pages[1:], anchors[1:], strict=True):
-        if _starts_a_period(anchor, last4, period, beginning_is_boilerplate):
+        if _starts_a_period(
+            anchor, last4, period, beginning_is_boilerplate, balance_anchors_rule
+        ):
             groups.append([page])
         else:
             groups[-1].append(page)
@@ -57,9 +62,12 @@ def _starts_a_period(
     last4: str | None,
     period: DateRange | None,
     beginning_is_boilerplate: bool,
+    balance_anchors_rule: bool,
 ) -> bool:
     if anchor.beginning and not beginning_is_boilerplate:
         return True
+    if balance_anchors_rule:
+        return False  # the strongest anchor is in play; the weaker ones are noise
     if anchor.last4 is not None and last4 is not None and anchor.last4 != last4:
         return True
     return _period_differs(anchor.period, period)
