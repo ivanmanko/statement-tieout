@@ -22,6 +22,11 @@ PRICES: dict[str, Price] = {
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-v4-flash"
 
+MAX_TOKENS = 8192
+"""Generous: DeepSeek's default model reasons before answering, and the cap
+covers reasoning *and* answer. Measured — at 2048 it produced 2048 tokens of
+reasoning and an empty answer, and at 4096 it did the same."""
+
 
 class OpenAICompatibleClient:
     def __init__(self, client=None):
@@ -44,7 +49,7 @@ class OpenAICompatibleClient:
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             response_format={"type": "json_object"},
             temperature=0,
-            max_tokens=2048,
+            max_tokens=MAX_TOKENS,
         )
         usage = response.usage
         return Completion(

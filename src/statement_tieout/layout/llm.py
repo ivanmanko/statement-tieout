@@ -20,7 +20,9 @@ import re
 from pydantic import ValidationError
 
 from ..llm.client import LLMClient, Usage
+from ..money import find_money
 from ..pdf.model import Page
+from .dates import starts_with_date
 from .profile import LayoutProfile
 
 MAX_SAMPLE_PAGES = 2
@@ -32,11 +34,12 @@ MAX_SAMPLE_LINES = 25
 MAX_ATTEMPTS = 3
 """SPEC §7.16."""
 
-SYSTEM = """You are given a sample of one bank statement page as words with \
-their horizontal positions. Describe the LAYOUT so a deterministic parser can \
-read every row.
+SYSTEM = """Describe the LAYOUT of a bank statement so a deterministic parser \
+can read its rows. You are shown sample lines as words with horizontal \
+positions.
 
-Return ONLY a JSON object matching the schema. Never return transactions: \
+Answer with the JSON object and nothing else. Do not reason at length: the \
+positions are given to you, so read them off. Never return transactions — \
 rows are parsed from your description, not from your reading of them.
 
 side_strategy tells the parser how a row becomes a deposit or a withdrawal:
@@ -107,8 +110,25 @@ def _prompt(pages: list[Page], feedback: str | None) -> str:
 
 
 def _sample(pages: list[Page]) -> list[Page]:
-    """The first page, which carries the header, plus the densest table page."""
+    """The first page, which carries the header, plus the densest **table** page.
+
+    By row count, not word count. Measured: picking the wordiest page handed
+    the model the reconcilement form printed on the back of a statement, and
+    it spent its whole token budget working out what it had been given.
+    """
     if len(pages) <= MAX_SAMPLE_PAGES:
         return pages
-    densest = max(pages[1:], key=lambda page: len(page.words))
+    densest = max(pages[1:], key=_row_shaped_lines)
     return [pages[0], densest]
+
+
+def _row_shaped_lines(page: Page) -> int:
+    """Lines that open with a date and carry money — i.e. transaction rows."""
+    total = 0
+    for line in page.lines():
+        if not line:
+            continue
+        text = " ".join(word.text for word in line)
+        if starts_with_date(text) and find_money(text):
+            total += 1
+    return total
