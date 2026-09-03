@@ -144,7 +144,7 @@ class TestNonRowLines:
         assert len(parse_rows([p], profile()).transactions) == 1
 
     def test_a_repeated_header_on_page_two_is_not_swallowed_as_a_continuation(self):
-        """SPEC §7.12: a continuation carries words only in the description band."""
+        """SPEC §7.13: a continuation carries words only in the description band."""
         first = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "A"), (LEFT_X, "10.00"),
                           (BALANCE_X, "1,010.00")))
         second = page(
@@ -239,3 +239,34 @@ class TestDates:
                       (BALANCE_X, "1,010.00")))
         parsed = parse_rows([p], prof)
         assert any("year" in w for w in parsed.warnings)
+
+
+class TestZeroAmountRows:
+    """SPEC §7.12 — a row that moves no money is not a transaction.
+
+    Found by running the binder: one such row raised a validation error and
+    killed the whole extraction, which is the wrong failure mode for a file
+    of 99 pages.
+    """
+
+    def test_a_zero_amount_row_is_skipped_not_fatal(self):
+        p = page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "BEGINNING BALANCE"),
+                 (LEFT_X, "0.00"), (BALANCE_X, "1,000.00")),
+            line(112.0, (DATE_X, "01/02/2025"), (DESC_X, "REAL"), (LEFT_X, "10.00"),
+                 (BALANCE_X, "1,010.00")),
+        )
+        parsed = parse_rows([p], profile())
+        assert [t.description for t in parsed.transactions] == ["REAL"]
+
+    def test_the_skip_is_reported(self):
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "NIL"), (LEFT_X, "0.00"),
+                      (BALANCE_X, "1,000.00")))
+        parsed = parse_rows([p], profile())
+        assert parsed.transactions == []
+        assert any("zero" in w for w in parsed.warnings)
+
+    def test_a_negative_zero_is_also_skipped(self):
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "NIL"), (LEFT_X, "-0.00"),
+                      (BALANCE_X, "1,000.00")))
+        assert parse_rows([p], profile()).transactions == []

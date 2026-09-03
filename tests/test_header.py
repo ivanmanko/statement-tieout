@@ -1,6 +1,6 @@
 """Reading the printed header: account identity and the summary block.
 
-SPEC §7.5 (labels, scope, counts) and §7.15 (bank, account, period). ADR-001
+SPEC §7.5 (labels, scope, counts) and §7.16 (bank, account, period). ADR-001
 is why this exists at all: the summary is *read*, not computed, so that
 reconciliation compares two independent things.
 """
@@ -222,7 +222,7 @@ class TestWhitespaceInsensitiveLabels:
 
 
 class TestLetterheadBySize:
-    """SPEC §7.15 — the bank name is the biggest text, not the first tidy line."""
+    """SPEC §7.16 — the bank name is the biggest text, not the first tidy line."""
 
     def test_the_largest_line_wins_even_with_a_postcode(self):
         rows = [
@@ -245,7 +245,7 @@ class TestLetterheadBySize:
 
 
 class TestAccountMaskGuard:
-    """SPEC §7.15 — `Box` ends in `x`, and `P.O.Box 4887` is not an account number."""
+    """SPEC §7.16 — `Box` ends in `x`, and `P.O.Box 4887` is not an account number."""
 
     def test_a_po_box_is_not_an_account(self):
         reading = read_header(["P.O.Box 4887 Page 1 of 15", "Primary Account: XXXX 1858"])
@@ -257,7 +257,7 @@ class TestAccountMaskGuard:
 
 
 class TestLetterheadIsWordsNotLines:
-    """SPEC §7.15 — a logo is set larger than the address printed beside it."""
+    """SPEC §7.16 — a logo is set larger than the address printed beside it."""
 
     def test_only_the_large_words_of_the_line_are_the_bank(self):
         rows = [
@@ -275,7 +275,7 @@ class TestLetterheadIsWordsNotLines:
 
 
 class TestAccountMaskNeedsTwoCharactersOrNoGap:
-    """SPEC §7.15 — OCR of `P.O.Box 4887` yields `P.O.B 0 x 4887` on some pages."""
+    """SPEC §7.16 — OCR of `P.O.Box 4887` yields `P.O.B 0 x 4887` on some pages."""
 
     def test_a_lone_masked_character_with_a_gap_is_not_a_mask(self):
         reading = read_header(["P.O.B 0 x 4887 Page 3 of 15", "Primary Account: XXXX 1858"])
@@ -286,7 +286,7 @@ class TestAccountMaskNeedsTwoCharactersOrNoGap:
 
 
 class TestStatementCyclePair:
-    """SPEC §7.15 — core-banking statements state the cycle as two lines."""
+    """SPEC §7.16 — core-banking statements state the cycle as two lines."""
 
     def test_last_and_this_statement_bracket_the_period(self):
         period = read_header([
@@ -310,7 +310,7 @@ class TestStatementCyclePair:
 
 
 class TestAccountNumberWithoutAMask:
-    """SPEC §7.15 — `ACCOUNT NUMBER 0011016426` means the account ends 6426."""
+    """SPEC §7.16 — `ACCOUNT NUMBER 0011016426` means the account ends 6426."""
 
     def test_last_four_of_a_long_run(self):
         assert read_header(["ACCOUNTNUMBER 0011016426"]).account.account_last4 == "6426"
@@ -333,7 +333,7 @@ class TestCommaLessMonthName:
 
 
 class TestPeriodFromBalanceLines:
-    """SPEC §7.15 — the header may state only a statement date; the balances state the range."""
+    """SPEC §7.16 — the header may state only a statement date; the balances state the range."""
 
     def test_as_of_dates_fill_a_missing_start(self):
         period = read_header([

@@ -45,7 +45,7 @@ _COUNT_OF = {"deposits_total": "deposits_count", "withdrawals_total": "withdrawa
 PERIOD_LABELS = ("statement period", "statement date", "for the period", "period covered")
 
 LETTERHEAD_LINES = 15
-"""How far down the page a letterhead may be (SPEC §7.15)."""
+"""How far down the page a letterhead may be (SPEC §7.16)."""
 
 LETTERHEAD_SIZE_RATIO = 0.85
 """Words this close to the largest on the page belong to the letterhead with it."""
@@ -273,7 +273,7 @@ def _read_account(lines: Sequence[_Line]) -> Account:
 
 
 def _read_bank(lines: Sequence[_Line]) -> str | None:
-    """The letterhead: the words set in the largest type (SPEC §7.15).
+    """The letterhead: the words set in the largest type (SPEC §7.16).
 
     Word, not line: a logo is set larger than the address printed beside it,
     so taking the whole line returns the address too.
@@ -306,7 +306,7 @@ def _could_be_a_letterhead(line: _Line) -> bool:
 
 
 def read_last4(lines: Sequence[RawLine]) -> str | None:
-    """The masked or labelled account tail (SPEC §7.15). Also a period anchor."""
+    """The masked or labelled account tail (SPEC §7.16). Also a period anchor."""
     resolved = _as_lines(lines)
     for line in resolved:
         masked = _MASKED_ACCOUNT.search(line.text)
@@ -325,7 +325,7 @@ def read_last4(lines: Sequence[RawLine]) -> str | None:
 
 
 def read_period(lines: Sequence[RawLine]) -> DateRange:
-    """The stated statement period (SPEC §7.15). Also a period anchor."""
+    """The stated statement period (SPEC §7.16). Also a period anchor."""
     resolved = _as_lines(lines)
     for line in resolved:
         if not any(label in line.text.casefold() for label in PERIOD_LABELS):
@@ -361,7 +361,7 @@ def _completed(period: DateRange, lines: Sequence[_Line]) -> DateRange:
 
 
 def _cycle_pair(lines: Sequence[_Line]) -> DateRange:
-    """`... : LAST STATEMENT` over `... : THIS STATEMENT` (SPEC §7.15)."""
+    """`... : LAST STATEMENT` over `... : THIS STATEMENT` (SPEC §7.16)."""
     start = end = None
     for line in lines:
         squashed = _squash(line.text)

@@ -92,7 +92,7 @@ the 13.7 KB file is digital. Size predicts nothing. See ADR-005 — this is
 what moved OCR out of the ladder and into ingest.
 
 **The share threshold for money columns was wrong, and measurement said so
-before any test did.** SPEC §7.17 originally discarded a money cluster
+before any test did.** SPEC §7.18 originally discarded a money cluster
 appearing on under 30% of rows, as a way of rejecting amounts embedded in
 descriptions. Fulton's statement is mostly checks: its deposits column sits on
 16% of rows. Printing the actual clusters settled it —
