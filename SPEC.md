@@ -628,19 +628,26 @@ it was read from and its **line index** on that page, and every summary field
 records whether it was printed or derived (§7.8). A figure that cannot be
 traced to evidence cannot be relied on, however correct it happens to be.
 
-**"Is this exception mine or the client's?"** The residual is decomposed, not
-reported as one number:
+**"Is this exception mine or the statement's?"** Note the question is not
+"mine or the client's": this system sees **only the bank statement** and never
+the client's ledger, so it cannot produce a bank-versus-book difference. What
+it reconciles is the bank's printed totals against the bank's own printed
+lines. A residual therefore has exactly two possible causes, and the view
+separates them:
 
-- **`extraction_uncertainty`** — the tool's own doubt. Rows it recovered from
-  a balance step, rows it skipped, lines it read as a summary table, and any
-  amount its residual diagnosis names. These are **not** audit findings and
-  must never reach the client.
-- **`substantive_difference`** — what is left once the tool's doubt is
-  accounted for. This is a genuine reconciling item and the only part that is
-  audit evidence.
+- **`extraction_uncertainty`** — the tool misread the page. Rows it recovered
+  from a balance step, rows it skipped, lines it read as a summary table, and
+  any amount its residual diagnosis attributes to itself. These are **not**
+  audit findings and must never reach the client.
+- **`statement_inconsistency`** — the statement does not agree with itself.
+  This *is* audit evidence, and an unusual finding worth raising. It may be
+  asserted **only when no extraction doubt is outstanding**; while the tool
+  still doubts itself it cannot blame the document.
+- **`unexplained`** — a residual that is neither attributed nor clean. The
+  honest third state, and the one that sends a period to manual re-performance.
 
-Conflating the two is the failure mode this section exists to prevent: an
-auditor who chases a phantom reconciling item wastes a day, and one who books
+Conflating these is the failure mode this section exists to prevent: an
+auditor who chases a phantom reconciling item loses a day, and one who books
 an adjustment against it has put an extraction defect into a client's
 accounts.
 
@@ -648,9 +655,15 @@ accounts.
 
 | verdict | meaning | what happens next |
 |---|---|---|
-| `tied` | reconciled, population bounded | the workpaper is complete |
-| `exceptions_identified` | not reconciled, but every discrepancy is named and quantified | review the named items |
-| `not_tied` | not reconciled and the residual is not explained | re-perform by hand |
+| `tied` | reconciled, population bounded, no outstanding doubt | the workpaper is complete |
+| `tied_with_notes` | reconciled, but the population is unbounded or some amounts were inferred | vouch the noted items, then complete |
+| `exceptions_identified` | not reconciled, and every discrepancy is named, quantified and attributed | work the named items |
+| `not_tied` | not reconciled and the residual is unexplained | re-perform by hand |
+
+Each verdict carries **next steps in the auditor's own terms** — which page to
+inspect, which amounts to vouch, whether the population may be sampled at
+all — because a verdict that does not say what to do next is a status, not a
+workpaper.
 
 ## 9. The interface (normative)
 
