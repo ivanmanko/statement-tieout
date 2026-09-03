@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import os
 
-from .client import Completion, Price
+from ..reconcile.agent import arguments_of
+from .client import Completion, Price, ToolCall, ToolTurn
 
 #: Verified on DeepSeek's pricing page, 2026-09-02 (peak, cache miss).
 PRICES: dict[str, Price] = {
@@ -73,3 +74,67 @@ class OpenAICompatibleClient:
             prompt_tokens=usage.prompt_tokens if usage else 0,
             completion_tokens=usage.completion_tokens if usage else 0,
         )
+
+    def complete_with_tools(
+        self, system: str, transcript: list[dict], tools: list[dict]
+    ) -> ToolTurn:
+        """One turn of the repair loop, in the chat-completions tool format."""
+        response = self._client.chat.completions.create(
+            model=self._model,
+            messages=[{"role": "system", "content": system}, *_as_messages(transcript)],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool["name"],
+                        "description": tool["description"],
+                        "parameters": tool["parameters"],
+                    },
+                }
+                for tool in tools
+            ],
+            temperature=0,
+            max_tokens=MAX_TOKENS,
+            extra_body={"thinking": {"type": self._thinking}},
+        )
+        message = response.choices[0].message
+        usage = response.usage
+        return ToolTurn(
+            text=message.content or "",
+            tool_calls=[
+                ToolCall(
+                    id=call.id,
+                    name=call.function.name,
+                    arguments=arguments_of(call.function.arguments),
+                )
+                for call in (message.tool_calls or [])
+            ],
+            prompt_tokens=usage.prompt_tokens if usage else 0,
+            completion_tokens=usage.completion_tokens if usage else 0,
+        )
+
+
+def _as_messages(transcript: list[dict]) -> list[dict]:
+    """Neutral entries -> chat-completions messages."""
+    messages = []
+    for entry in transcript:
+        if entry["role"] == "user":
+            messages.append({"role": "user", "content": entry["text"]})
+        elif entry["role"] == "assistant":
+            message: dict = {"role": "assistant", "content": entry.get("text") or None}
+            calls = entry.get("tool_calls") or []
+            if calls:
+                message["tool_calls"] = [
+                    {
+                        "id": call.id,
+                        "type": "function",
+                        "function": {"name": call.name, "arguments": json.dumps(call.arguments)},
+                    }
+                    for call in calls
+                ]
+            messages.append(message)
+        else:
+            messages.append(
+                {"role": "tool", "tool_call_id": entry["call_id"], "content": entry["text"]}
+            )
+    return messages

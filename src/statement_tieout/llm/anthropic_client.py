@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from .client import Completion, Price
+from .client import Completion, Price, ToolCall, ToolTurn
 
 #: Anthropic list prices per million tokens, verified 2026-09-02.
 PRICES: dict[str, Price] = {
@@ -44,6 +44,37 @@ class AnthropicClient:
             completion_tokens=response.usage.output_tokens,
         )
 
+    def complete_with_tools(
+        self, system: str, transcript: list[dict], tools: list[dict]
+    ) -> ToolTurn:
+        """One turn of the repair loop, in the Messages tool format."""
+        response = self._client.messages.create(
+            model=self._model,
+            max_tokens=2048,
+            system=system,
+            messages=_as_messages(transcript),
+            tools=[
+                {
+                    "name": tool["name"],
+                    "description": tool["description"],
+                    "input_schema": tool["parameters"],
+                }
+                for tool in tools
+            ],
+        )
+        text = "".join(b.text for b in response.content if b.type == "text")
+        return ToolTurn(
+            text=text,
+            tool_calls=[
+                ToolCall(id=b.id, name=b.name, arguments=dict(b.input))
+                for b in response.content
+                if b.type == "tool_use"
+            ],
+            prompt_tokens=response.usage.input_tokens,
+            completion_tokens=response.usage.output_tokens,
+        )
+
+
 
 def _platform_client():
     platform = os.environ.get("LLM_PLATFORM", "anthropic").strip().lower()
@@ -67,3 +98,45 @@ def _platform_client():
     from anthropic import Anthropic
 
     return Anthropic()
+
+
+def _as_messages(transcript: list[dict]) -> list[dict]:
+    """Neutral entries -> Messages blocks, with consecutive tool results grouped.
+
+    Grouping matters: the Messages API expects every tool_result for one
+    assistant turn in a single user message.
+    """
+    messages: list[dict] = []
+    pending: list[dict] = []
+
+    def flush() -> None:
+        if pending:
+            messages.append({"role": "user", "content": list(pending)})
+            pending.clear()
+
+    for entry in transcript:
+        if entry["role"] == "tool":
+            pending.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": entry["call_id"],
+                    "content": entry["text"],
+                }
+            )
+            continue
+        flush()
+        if entry["role"] == "user":
+            messages.append({"role": "user", "content": entry["text"]})
+        else:
+            blocks: list[dict] = []
+            if entry.get("text"):
+                blocks.append({"type": "text", "text": entry["text"]})
+            blocks.extend(
+                {"type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments}
+                for call in entry.get("tool_calls") or []
+            )
+            messages.append(
+                {"role": "assistant", "content": blocks or [{"type": "text", "text": " "}]}
+            )
+    flush()
+    return messages
