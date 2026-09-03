@@ -275,6 +275,21 @@ Everything a developer would otherwise decide silently in code.
    final group must be exactly two digits, which is what keeps European
    notation (`1.234,56`) and dotted dates (`04.01.2025`) out of it.
 
+   **Two glyph and fragment repairs, both self-verifying.** OCR reads the
+   digit `1` as `i`, `l`, `I` or `|`, and it splits one printed number across
+   two boxes (`363.80` arriving as `363` then `80`, `01-02` as `0` then
+   `i-02`). Both are repaired **only where the repair makes the token parse**
+   — as a date under the profile's format, or as money. A substitution that
+   produces nothing meaningful is discarded, which is what keeps `Ixonia`
+   from becoming `1xonia` and `Life` from becoming `1ife`.
+
+   Fragments are joined only **within one declared column** and only between
+   **horizontally adjacent** boxes (a gap of at most 4 points). A column holds
+   one value per row, so two touching fragments inside it are one number; the
+   date column joins them plainly, and the amount column also tries a decimal
+   point before a final two-digit group. Longest join wins, so `0` + `1-2` +
+   `1` reads as `01-21` rather than stopping at `01-2`.
+
    **Consequence, recorded rather than hidden:** an all-capitals
    description with its spaces lost stays one token, so descriptions from a
    scan are less faithful than descriptions from a text layer. Amounts,

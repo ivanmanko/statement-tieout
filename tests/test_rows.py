@@ -15,7 +15,7 @@ from statement_tieout.layout import Column, LayoutProfile, SideStrategy
 from statement_tieout.parse.rows import parse_rows
 from statement_tieout.schema import DateRange
 
-from .helpers import BALANCE_X, DATE_X, DESC_X, LEFT_X, RIGHT_X, line, page
+from .helpers import BALANCE_X, DATE_X, DESC_X, LEFT_X, RIGHT_X, line, page, word
 
 BALANCE_COLUMN = Column(x0=480.0, x1=560.0)
 
@@ -341,3 +341,84 @@ class TestMultiColumnSummaryLines:
                       (200.0, "Apr 11"), (LEFT_X, "521,451.70"),
                       (BALANCE_X, "1,010.00")))
         assert parse_rows([p], prof).transactions == []
+
+
+class TestFragmentedTokens:
+    """SPEC §7.2 — OCR splits one printed value across two boxes.
+
+    Measured on the Renasant statement: `363.80` arrives as `363` then `80`,
+    `-13,495.14` as `-13,495` then `14`, `01-21` as `0`, `1-2`, `1`. Fragments
+    are joined only inside one column and only when they touch.
+    """
+
+    def touching(self, top, *cells):
+        """A line where the given cells sit flush against one another."""
+        words = []
+        for x0, text in cells:
+            words.append(word(text, x0, top))
+        return words
+
+    def test_an_amount_split_before_its_cents_is_joined(self):
+        p = page(
+            self.touching(100.0, (DATE_X, "01/01/2025")) +
+            [word("PAYMENT", DESC_X, 100.0)] +
+            [word("363", 330.0, 100.0), word("80", 348.0, 100.0)] +
+            [word("1,010.00", BALANCE_X, 100.0)]
+        )
+        (txn,) = parse_rows([p], profile()).transactions
+        assert txn.deposit == Decimal("363.80")
+
+    def test_a_negative_amount_split_before_its_cents_is_joined(self):
+        p = page(
+            self.touching(100.0, (DATE_X, "01/01/2025")) +
+            [word("WITHDRAWAL", DESC_X, 100.0)] +
+            [word("-13,495", 330.0, 100.0), word("14", 372.0, 100.0)] +
+            [word("990.00", BALANCE_X, 100.0)]
+        )
+        (txn,) = parse_rows([p], profile()).transactions
+        assert txn.withdrawal == Decimal("13495.14")
+
+    def test_a_date_split_across_boxes_is_joined(self):
+        prof = profile()
+        prof.date_formats = ["%m-%d"]
+        p = page(
+            [word("0", DATE_X, 100.0), word("1-2", DATE_X + 6.0, 100.0),
+             word("1", DATE_X + 24.0, 100.0)] +
+            [word("TRANSFER", DESC_X, 100.0)] +
+            [word("373.80", 330.0, 100.0), word("1,010.00", BALANCE_X, 100.0)]
+        )
+        parsed = parse_rows(
+            [p], prof, period=DateRange(start=date(2025, 1, 1), end=date(2025, 1, 31))
+        )
+        assert parsed.transactions[0].date == date(2025, 1, 21)
+
+    def test_the_longest_join_wins(self):
+        """`0` + `1-2` + `1` is 01-21, not 01-2 with a stray 1 left over."""
+        prof = profile()
+        prof.date_formats = ["%m-%d"]
+        p = page(
+            [word("0", DATE_X, 100.0), word("1-2", DATE_X + 6.0, 100.0),
+             word("1", DATE_X + 24.0, 100.0)] +
+            [word("X", DESC_X, 100.0), word("10.00", 330.0, 100.0),
+             word("1,010.00", BALANCE_X, 100.0)]
+        )
+        parsed = parse_rows(
+            [p], prof, period=DateRange(start=date(2025, 1, 1), end=date(2025, 1, 31))
+        )
+        assert parsed.transactions[0].date.day == 21
+
+    def test_boxes_that_do_not_touch_are_not_joined(self):
+        """Two separate values in one column would be a layout problem, not a fragment."""
+        p = page(
+            self.touching(100.0, (DATE_X, "01/01/2025")) +
+            [word("PAYMENT", DESC_X, 100.0)] +
+            [word("363", 330.0, 100.0), word("80", 380.0, 100.0)] +
+            [word("1,010.00", BALANCE_X, 100.0)]
+        )
+        assert parse_rows([p], profile()).transactions == []
+
+    def test_an_intact_amount_is_left_alone(self):
+        p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "PAYMENT"),
+                      (LEFT_X, "-17,459.90"), (BALANCE_X, "990.00")))
+        (txn,) = parse_rows([p], profile()).transactions
+        assert txn.withdrawal == Decimal("17459.90")

@@ -118,3 +118,37 @@ class TestColonSplitting:
     def test_a_dotted_date_is_left_alone(self):
         (word,) = words_from_segments([segment("04.01.2025", 0.0, 80.0)], scale=1.0)
         assert word.text == "04.01.2025"
+
+
+class TestGlyphRepair:
+    """SPEC §7.2 — OCR reads the digit 1 as i, l, I or |.
+
+    Measured on the Renasant statement: `01-02` arrives as `0` then `i-02`.
+    The substitution is applied only where it makes the token parse, so a word
+    that merely contains those letters is left alone.
+    """
+
+    def test_a_date_fragment_is_repaired(self):
+        (word,) = words_from_segments([segment("i-02", 0.0, 40.0)], scale=1.0)
+        assert word.text == "1-02"
+
+    def test_an_amount_is_repaired(self):
+        (word,) = words_from_segments([segment("i,782.02", 0.0, 70.0)], scale=1.0)
+        assert word.text == "1,782.02"
+
+    def test_a_word_containing_those_letters_is_untouched(self):
+        words = words_from_segments(
+            [segment("Ixonia", 0.0, 50.0), segment("Life", 60.0, 90.0),
+             segment("XRol", 100.0, 130.0)],
+            scale=1.0,
+        )
+        assert [w.text for w in words] == ["Ixonia", "Life", "XRol"]
+
+    def test_a_lone_letter_is_not_turned_into_a_digit(self):
+        """`1` alone is neither a date nor money, so nothing is gained."""
+        (word,) = words_from_segments([segment("i", 0.0, 8.0)], scale=1.0)
+        assert word.text == "i"
+
+    def test_a_pipe_is_repaired_like_the_letters(self):
+        (word,) = words_from_segments([segment("|,234.56", 0.0, 70.0)], scale=1.0)
+        assert word.text == "1,234.56"
