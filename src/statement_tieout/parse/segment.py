@@ -10,10 +10,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..layout.dates import starts_with_date
+from ..money import find_money
 from ..pdf.model import Page
 from ..schema import DateRange
 from .header import read_last4, read_period
-from .labels import BEGINNING_LABELS
+from .labels import BEGINNING_LABELS, matches_label
 
 
 @dataclass(frozen=True)
@@ -90,10 +91,12 @@ def _anchors_on(page: Page) -> _Anchors:
     header_lines = [line for line in lines if not starts_with_date(line)]
     found_period = read_period(header_lines)
     return _Anchors(
+        # SPEC §7.3: the amount is what tells a summary line from prose about
+        # balances — the interest disclosure on the back of a statement says
+        # "we take the beginning balance of your account each day…".
         beginning=any(
-            label in " ".join(line.split()).casefold()
+            matches_label(line, BEGINNING_LABELS) and find_money(line)
             for line in header_lines
-            for label in BEGINNING_LABELS
         ),
         last4=read_last4(header_lines),
         period=found_period if found_period != DateRange() else None,

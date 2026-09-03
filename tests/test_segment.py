@@ -149,3 +149,31 @@ class TestAnchorsAreRanked:
             statement_page(2, "Statement period 05/01/2025 - 05/31/2025"),
         ]
         assert len(segment(pages)) == 2
+
+
+class TestAnchorNeedsAnAmount:
+    """SPEC §7.3 — a summary line states a balance; prose about balances does not.
+
+    Measured on the Ixonia binder: the interest disclosure printed on the back
+    of every statement says "we take the beginning balance of your account
+    each day…", and reading that as a period marker split one November
+    statement in two — the totals in one period, the 176 transactions in the
+    next.
+    """
+
+    def test_prose_mentioning_a_balance_is_not_an_anchor(self):
+        pages = [
+            statement_page(1, "Beginning Balance as of 11/01/2024 $478,342.19"),
+            statement_page(2, "we take the beginning balance of your account each day,",
+                           "add any new purchases, advances or fees, and subtract"),
+            plain(3),
+        ]
+        assert [[p.number for p in g] for g in segment(pages)] == [[1, 2, 3]]
+
+    def test_a_real_summary_line_still_anchors(self):
+        pages = [
+            statement_page(1, "Beginning Balance as of 11/01/2024 $478,342.19"),
+            plain(2),
+            statement_page(3, "Beginning Balance as of 12/01/2024 $509,121.59"),
+        ]
+        assert len(segment(pages)) == 2

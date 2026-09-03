@@ -298,7 +298,7 @@ Everything a developer would otherwise decide silently in code.
    dates and balances are unaffected, and those are what reconciliation and
    the graded summary depend on.
 3. **Period anchors**, matched case-insensitively: a line carrying a
-   beginning-balance label (§7.5); a change in the account number found on
+   beginning-balance label (§7.5) **and an amount**; a change in the account number found on
    the page (§7.19); a `statement period` / `statement date` line whose
    dates differ from the current period's — **compared field by field**, so
    a page stating only an end date does not read as a change of period. A
@@ -306,6 +306,13 @@ Everything a developer would otherwise decide silently in code.
    invents a period that is not there. A new period starts at the page
    where an anchor fires; a file with no anchor is one period spanning all
    pages.
+
+   The amount is what separates a summary line from prose about balances. The
+   back of a statement carries the interest disclosure — *"we take the
+   beginning balance of your account each day, add any new purchases…"* — and
+   without that guard it opens a new period, which on a real binder split one
+   November statement in two: its printed totals landed in one period and its
+   176 transactions in the next, so neither could reconcile.
 
    **Anchors are ranked, and the strongest one used alone.** A
    beginning-balance line is the definitive opening of a statement; a change
