@@ -15,7 +15,7 @@ what went wrong along the way is in [docs/ai/AI_NOTES.md](docs/ai/AI_NOTES.md).
 
 | | |
 |---|---|
-| Tests | 308 unit tests — no LLM, no network, no sample PDF required |
+| Tests | 335 unit tests — no LLM, no network, no sample PDF required |
 | Accuracy | measured by `evals/run_evals.py`, table below |
 | Cost | **$0.00 and zero API calls** on every sample, scans included |
 
@@ -166,15 +166,19 @@ Produced by `uv run python evals/run_evals.py`, not estimated. `match` is
 exact equality against ground truth a human read off the printed page — off a
 rendering of it, for the scans — recorded in `evals/expected/`.
 
-| file | ingest | periods | rows | reconciled | checks ok | residual | match | calls | cost | latency |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Great Lakes x4071 2025-01 | text | 1 | 292 | **yes** | 4/6 | 0.00 | **11/11** | 0 | $0.00 | 0.3 s |
-| April 2021 (Fulton Bank) | **OCR** | 1 | 284 | **yes** | 4/6 | 0.00 | **8/8** | 0 | $0.00 | 54 s |
-| Binder2_Redacted (Ixonia Bank) | **OCR** | **11** | 1320 | no | 0/6 | −770,752.62 | **9/10** | 0 | $0.00 | 251 s |
-| S2.6.1.1-2 Acct 6426 (Renasant) | **OCR** | 1 | 6 of 10 | no | 1/6 | 13,871.16 | 7/9 | 0 | $0.00 | 7 s |
+| file | ingest | periods | rows | reconciled | checks ok | residual | match | calls | cost |
+|---|---|---|---|---|---|---|---|---|---|
+| Great Lakes x4071 2025-01 | text | 1 | 292 | **yes** | 4/6 | 0.00 | **11/11** | 0 | $0.00 |
+| April 2021 (Fulton Bank) | **OCR** | 1 | 284 | **yes** | 4/6 | 0.00 | **8/8** | 0 | $0.00 |
+| Binder2_Redacted (Ixonia Bank) | **OCR** | **10** | 1415 | no | 1/6 | −477,375.35 | **9/10** | 0 | $0.00 |
+| S2.6.1.1-2 Acct 6426 (Renasant) | **OCR** | 1 | 8 of 10 | no | 2/6 | 749.82 | 7/9 | 0 | $0.00 |
 
 Four banks, four unrelated layouts, one parser, no bank-specific code, and no
 API call on any of them.
+
+**Of the twenty summary fields for which ground truth exists, twenty match
+exactly** — on all four files. The only mismatches anywhere are two
+transaction counts and one bank name (`RENASANT` against `RENASANT BANK`).
 
 **Great Lakes** — the tuning file (SPEC §10.1). Every ground-truth field
 exact. One signed amount column plus a running balance.
@@ -182,44 +186,29 @@ exact. One signed amount column plus a running balance.
 **April 2021** — held out. Fifteen scanned pages, a *horizontal* summary block
 (labels in one row, amounts in the next), two amount columns of which the
 deposits column carries only 16% of the rows, and a logo set at 18.4 pt beside
-a 10.4 pt address on the same line. Every ground-truth field exact; the period
-reconciles to the cent.
+a 10.4 pt address on the same line. Every ground-truth field exact; reconciles
+to the cent.
 
-**Binder2_Redacted** — held out, 99 scanned pages holding **eleven** Ixonia
-Bank statements with their descriptions redacted. All eleven periods are
-detected. On the first — the statement the assignment prints as its own
-example output — the extractor reproduces **nine of ten** ground-truth fields
-exactly: bank, account, period, and all six summary values *including the
-printed counts of 81 deposits and 111 withdrawals*. The tenth is the
-transaction count: 188 rows found against 192 printed, so no period
-reconciles. The gap is named below rather than rounded away.
+**Binder2_Redacted** — held out. 99 scanned pages holding **ten** Ixonia Bank
+statements with their descriptions redacted. All ten periods are detected. On
+the first — the statement the assignment prints as its own example output —
+nine of ten ground-truth fields are exact: bank, account, period and all six
+summary values *including the printed counts of 81 deposits and 111
+withdrawals*. The tenth is the transaction count, 189 against 192.
 
 **S2.6.1.1-2 Account 6426** — held out. Bank, account, period and all four
-printed totals are read correctly and the printed block closes against itself,
-but this statement is section-based (`CHECKS` / `OTHER DEBITS` / `CREDITS`) and
-its `CHECKS` section prints **two transactions per line**. The row model reads
-one, so 4 of 10 rows are missed.
+printed totals correct and the printed block closes against itself. The
+residual of 749.82 is exactly its two cheques, which are printed two to a line
+in a section with its own column geometry — see [Cut scope](#cut-scope).
 
-### What is actually missing, on the file that came closest
+### Latency
 
-Six row-shaped lines on the Ixonia statement produce no transaction, and each
-was identified rather than guessed at:
-
-| line | why |
-|---|---|
-| `Apr 01 BEGINNING BALANCE $597,068.70` | correctly not a transaction |
-| `Apr 30 ENDING BALANCE $509,121.59` | correctly not a transaction |
-| `Apr 18 STSOPERATINGIN/ECHECKPAY 1.782.02` | OCR read `1,782.02` — **fixed**, a declared repair |
-| `Apr 30 MUELLERGROUP/EXPREIMB 63.779.55` | same misread — **fixed** |
-| `Apr 25 487,634.08` | OCR dropped the description *and* the amount, leaving only the balance |
-| `Apr 10 428,411.51` | same |
-
-The last two are recoverable: where a running balance exists, a row missing
-its amount has it in the balance step, `balance[i] − balance[i−1]`. That is
-the next thing to build, and it is deliberately **not** built tonight —
-inventing an amount is exactly the kind of rule that must be measured before
-it ships, and the running balance is currently declared as a verifier rather
-than a parser (SPEC §7.10).
+OCR is the entire cost and the pipeline around it is free: measured per page,
+**6 s of OCR against 0.004 s** of parsing, reconciling and diagnosis. So a
+6-page text-layer statement takes under a second and a 99-page scan takes
+about ten minutes. Fine for a batch tool, wrong for an interactive one.
+Parallelising the OCR was tried and is in [Cut scope](#cut-scope) — measured,
+it made things slower.
 
 ## Generalization
 
