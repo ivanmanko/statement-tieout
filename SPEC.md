@@ -277,6 +277,18 @@ Everything a developer would otherwise decide silently in code.
    where an anchor fires; a file with no anchor is one period spanning all
    pages.
 
+   **Anchors are ranked, and the strongest one used alone.** A
+   beginning-balance line is the definitive opening of a statement; a change
+   of account number or of period dates is a *fallback* for statements that
+   print no such line. So when a document carries any beginning-balance
+   anchor, segmentation uses only those and ignores the others.
+
+   Measured on a 99-page binder: the beginning-balance anchor fires exactly
+   11 times, once per statement. Account number alone fires far more often,
+   because OCR reads a four-digit number off a scanned check image and out
+   of a description reading `TRNSFR TO CHECKING ACCT ENDING IN 4623` — which
+   split the file into 26 periods, none of which reconciled.
+
    **Boilerplate guard:** an anchor appearing on *every* page is a running
    header or footer, not a period marker, and is ignored — otherwise a
    statement repeating "Previous balance" in its page footer would be split
