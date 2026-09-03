@@ -9,6 +9,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
 
 from statement_tieout.layout import Column, LayoutProfile, SideStrategy
 from statement_tieout.parse.rows import parse_rows
@@ -270,3 +271,30 @@ class TestZeroAmountRows:
         p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "NIL"), (LEFT_X, "-0.00"),
                       (BALANCE_X, "1,000.00")))
         assert parse_rows([p], profile()).transactions == []
+
+
+class TestOneBadRowDoesNotKillTheDocument:
+    """SPEC §7.13 — a row the contract rejects costs that row, not the file."""
+
+    def test_a_rejected_row_is_skipped_and_counted(self, monkeypatch):
+        import statement_tieout.parse.rows as rows_module
+
+        real = rows_module.Transaction
+
+        def only_the_second_is_bad(**fields):
+            if fields.get("description") == "BAD":
+                raise ValidationError.from_exception_data("Transaction", [])
+            return real(**fields)
+
+        monkeypatch.setattr(rows_module, "Transaction", only_the_second_is_bad)
+        p = page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "GOOD"), (LEFT_X, "10.00"),
+                 (BALANCE_X, "1,010.00")),
+            line(112.0, (DATE_X, "01/02/2025"), (DESC_X, "BAD"), (LEFT_X, "20.00"),
+                 (BALANCE_X, "1,030.00")),
+            line(124.0, (DATE_X, "01/03/2025"), (DESC_X, "ALSO GOOD"), (LEFT_X, "30.00"),
+                 (BALANCE_X, "1,060.00")),
+        )
+        parsed = parse_rows([p], profile())
+        assert [t.description for t in parsed.transactions] == ["GOOD", "ALSO GOOD"]
+        assert any("rejected" in w for w in parsed.warnings)

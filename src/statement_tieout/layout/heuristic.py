@@ -1,4 +1,4 @@
-"""Deriving a layout profile from coordinates alone — rung 0 (SPEC §7.18).
+"""Deriving a layout profile from coordinates alone — rung 0 (SPEC §7.19).
 
 This rung costs nothing and is what generalization rests on: no bank name, no
 template, no model. Its other job is to **decline**. A profile guessed where
@@ -50,7 +50,7 @@ def derive_profile(pages: list[Page]) -> LayoutProfile | None:
     balance, amounts = _split_off_balance(clusters, rows)
     if not amounts:
         return None
-    amounts = amounts[-2:]  # at most two, rightmost first (SPEC §7.18.5)
+    amounts = amounts[-2:]  # at most two, rightmost first (SPEC §7.19.5)
 
     strategy = _side_strategy(amounts, rows, deposits, withdrawals, balance)
     if strategy is None:
@@ -101,7 +101,7 @@ class _Cluster:
     right_edges: list[float]
 
     def is_a_column(self) -> bool:
-        """SPEC §7.18.3: amounts in a table are aligned; amounts in a sentence are not."""
+        """SPEC §7.19.3: amounts in a table are aligned; amounts in a sentence are not."""
         if len(self.rows) < MIN_COLUMN_ROWS:
             return False
         spread = min(pstdev(self.left_edges), pstdev(self.right_edges))
@@ -149,7 +149,7 @@ def _split_off_balance(
 def _behaves_like_a_running_balance(
     candidate: _Cluster, others: list[_Cluster], rows: list[_Row]
 ) -> bool:
-    """SPEC §7.18.4: b[i] − b[i−1] == ± the row's amount, on a majority of pairs."""
+    """SPEC §7.19.4: b[i] − b[i−1] == ± the row's amount, on a majority of pairs."""
     balances = [_value_in(row, [candidate]) for row in rows]
     amounts = [_value_in(row, others) for row in rows]
     pairs = [
@@ -173,7 +173,7 @@ def _value_in(row: _Row, clusters: list[_Cluster]) -> Decimal | None:
 def _classify_headings(
     headings: list[list[Word]], columns: list[_Cluster]
 ) -> tuple[list[str], list[str]]:
-    """SPEC §7.18.6: a line sitting over the money columns is the table's own header."""
+    """SPEC §7.19.6: a line sitting over the money columns is the table's own header."""
     deposits, withdrawals = [], []
     for line in headings:
         if any(_overlaps(word, columns) for word in line):

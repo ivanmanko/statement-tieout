@@ -24,13 +24,13 @@ from ..pdf.model import Page
 from .profile import LayoutProfile
 
 MAX_SAMPLE_PAGES = 2
-"""SPEC §7.14: a sample, never the table."""
+"""SPEC §7.15: a sample, never the table."""
 
 MAX_SAMPLE_LINES = 25
 """Enough lines to show the shape of a row; far fewer than a page holds."""
 
 MAX_ATTEMPTS = 3
-"""SPEC §7.15."""
+"""SPEC §7.16."""
 
 SYSTEM = """You are given a sample of one bank statement page as words with \
 their horizontal positions. Describe the LAYOUT so a deterministic parser can \

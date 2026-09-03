@@ -14,7 +14,7 @@ their own machines against statements we have never seen.
 
 **Harness:** the tool-call loop from the regular `anthropic` package
 (`client.beta.messages.tool_runner` over tools we define — `read_page_text`,
-`find_amount`, `set_row`), with per-turn hooks enforcing the SPEC §7.15
+`find_amount`, `set_row`), with per-turn hooks enforcing the SPEC §7.16
 bounds on turns and dollars.
 
 **Provider:** selected by `LLM_PROVIDER` env var among `anthropic` (default),
