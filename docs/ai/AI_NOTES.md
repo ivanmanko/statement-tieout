@@ -244,3 +244,40 @@ free verifier in front of a model instead of behind it.
 **What I would not have learned any other way:** every one of these six is a
 thing the code did wrong while looking right, and every one was found by
 running it against a file I had not seen. None came from review.
+
+## Rung 4, and the temptation not to take
+
+The repair loop is the piece the assignment names outright ("build an Agent"),
+and the only place in this project where an agentic loop is defensible: the
+verifier is free, deterministic and automatic, so every tool answers with the
+new verdict and the model is *told* whether its last move helped instead of
+being asked to judge its own work.
+
+**The ADR was wrong and had to be amended.** ADR-004 specified the Anthropic
+SDK's `tool_runner`, chosen partly for its per-turn hooks. That was written
+before the configured provider was DeepSeek, and a loop tied to one vendor's
+SDK cannot serve a provider selected by an env var — which is the whole claim
+the same ADR makes two paragraphs later. The loop now keeps a
+provider-neutral transcript and each client renders it into its own wire
+format. The ceilings the hooks were supposed to justify turned out to be two
+comparisons at the top of the loop.
+
+**Measured, it does not fix anything.** On the Renasant statement: 5–6 calls,
+$0.006–0.008, 22 seconds. Traced, it called `state`, then `list_rows`, then
+read both pages — and stopped **without making a single edit**. It inspected
+the evidence and declined to guess.
+
+**And here is the temptation I did not take.** I could have kept editing the
+system prompt until that file passed. It is a *held-out* sample (SPEC §10.1).
+Tuning against it would have bought a number in the README and destroyed the
+only thing that number was worth: evidence about statements nobody has tuned
+for. The whole reason to declare a tuning file on day one is to have something
+to refuse on day two.
+
+What the exercise does establish is the shape, and the shape is the part that
+generalizes: the model is reached only after a free check has refused the free
+answer; it is bounded before each turn rather than asked to be brief; and its
+work is discarded wholesale unless the period closes. It cost under a cent and
+could not have corrupted the output — which is the argument for putting the
+verifier in front of the model rather than behind it, made in numbers instead
+of prose.
