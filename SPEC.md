@@ -424,6 +424,13 @@ Everything a developer would otherwise decide silently in code.
       `statement period`, `statement date`, `for the period` or
       `period covered`. One date alone fills `end` and leaves `start` null.
 
+      Where an endpoint is still missing, the **balance lines** supply it:
+      `Beginning Balance as of 04/01/2025` gives the start and
+      `Ending Balance as of 04/30/2025` the end. Statements routinely print
+      only a `Statement Date` in the header while stating the real range
+      beside the balances — and without the start, a transaction line
+      reading `Apr 01` has no year (§7.11).
+
       Core-banking statements often state the cycle as a *pair* of lines
       instead: `DECEMBER 31, 2024: LAST STATEMENT` above `JANUARY 31, 2025:
       THIS STATEMENT`. A line containing `last statement` supplies the

@@ -330,3 +330,34 @@ class TestCommaLessMonthName:
     def test_a_run_together_cycle_label_still_matches(self):
         period = read_header(["DECEMBER 31 2024 LASTSTATEMENT"]).account.period
         assert period.start == date(2024, 12, 31)
+
+
+class TestPeriodFromBalanceLines:
+    """SPEC §7.15 — the header may state only a statement date; the balances state the range."""
+
+    def test_as_of_dates_fill_a_missing_start(self):
+        period = read_header([
+            "Statement Date 04/30/2025",
+            "Beginning Balance as of 04/01/2025 $597,068.70",
+            "Ending Balance as of 04/30/2025 $509,121.59",
+        ]).account.period
+        assert period.start == date(2025, 4, 1)
+        assert period.end == date(2025, 4, 30)
+
+    def test_balance_lines_alone_are_enough(self):
+        period = read_header([
+            "Beginning Balance as of 04/01/2025 $597,068.70",
+            "Ending Balance as of 04/30/2025 $509,121.59",
+        ]).account.period
+        assert (period.start, period.end) == (date(2025, 4, 1), date(2025, 4, 30))
+
+    def test_an_explicit_range_is_not_overridden(self):
+        period = read_header([
+            "Statement period 03/01/2025 - 03/31/2025",
+            "Beginning Balance as of 04/01/2025 $1.00",
+        ]).account.period
+        assert (period.start, period.end) == (date(2025, 3, 1), date(2025, 3, 31))
+
+    def test_a_balance_line_with_no_date_changes_nothing(self):
+        period = read_header(["Beginning balance $597,068.70"]).account.period
+        assert period.start is None

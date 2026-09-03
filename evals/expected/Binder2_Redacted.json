@@ -1,0 +1,27 @@
+{
+  "provenance": {
+    "period_0": "the assignment states this statement in full as its example output, and the printed block on page 1 of the file says the same — two independent sources agreeing",
+    "transactions_count": "81 deposits + 111 withdrawals, both printed on the page",
+    "aggregate": "not recorded: the file holds several statements and reading every printed block by eye would be neither quick nor trustworthy"
+  },
+  "period_expectations": [
+    {
+      "index": 0,
+      "account": {
+        "bank": "Ixonia Bank",
+        "account_last4": "4664",
+        "period": { "start": "2025-04-01", "end": "2025-04-30" }
+      },
+      "summary": {
+        "beginning_balance": 597068.70,
+        "ending_balance": 509121.59,
+        "deposits_total": 1214254.05,
+        "deposits_count": 81,
+        "withdrawals_total": 1302201.16,
+        "withdrawals_count": 111
+      },
+      "transactions_count": 192
+    }
+  ],
+  "notes": "Held out from tuning (SPEC §10.1). 99 scanned pages, several statements concatenated — the only sample that exercises period segmentation. Also the first sample that PRINTS transaction counts, so the deposits_count / withdrawals_count checks are available on it and the residual diagnosis can identify a failing row rather than only propose one. Descriptions are redacted with black bars, which OCR reads as nothing."
+}

@@ -78,6 +78,7 @@ def _evaluate(pdf: Path) -> dict:
     row.update(_observed(result))
     row["invariant_violations"] = _invariants(result)
     row["summary_diff"] = _compare(result, expected)
+    row["period_diff"] = _compare_periods(result, expected)
     row["status"] = _status(row)
     return row
 
@@ -187,12 +188,57 @@ def _compare(result: ExtractResult, expected: dict | None) -> dict | None:
     return diff
 
 
+def _compare_periods(result: ExtractResult, expected: dict | None) -> dict | None:
+    """Ground truth for one named period.
+
+    A binder's top-level summary is an aggregate, so it cannot be checked
+    against a single statement's printed block. Where ground truth exists for
+    one period — the assignment states the first Ixonia statement in full —
+    it is asserted against that period directly.
+    """
+    if expected is None or not expected.get("period_expectations"):
+        return None
+
+    diff: dict = {"matched": [], "mismatched": {}}
+    for expectation in expected["period_expectations"]:
+        index = expectation["index"]
+        label = f"period[{index}]"
+        if index >= len(result.periods):
+            diff["mismatched"][label] = {
+                "expected": "a period", "got": f"only {len(result.periods)} found"
+            }
+            continue
+        period = result.periods[index]
+        observed = {
+            **period.summary.model_dump(mode="json"),
+            "bank": period.account.bank,
+            "account_last4": period.account.account_last4,
+            "period": period.account.period.model_dump(mode="json"),
+            "transactions_count": len(period.transactions),
+        }
+        wanted = {
+            **expectation.get("summary", {}),
+            **{k: v for k, v in expectation.get("account", {}).items()},
+        }
+        if "transactions_count" in expectation:
+            wanted["transactions_count"] = expectation["transactions_count"]
+        for field, want in wanted.items():
+            got = observed.get(field)
+            if want == got:
+                diff["matched"].append(f"{label}.{field}")
+            else:
+                diff["mismatched"][f"{label}.{field}"] = {"expected": want, "got": got}
+    return diff
+
+
 def _status(row: dict) -> str:
     if row["invariant_violations"]:
         return "fail"
+    for key in ("summary_diff", "period_diff"):
+        diff = row.get(key)
+        if diff is not None and diff["mismatched"]:
+            return "fail"
     diff = row["summary_diff"]
-    if diff is not None and diff["mismatched"]:
-        return "fail"
     if diff is not None and row["reconciled"]:
         return "pass"
     return "reported"
@@ -215,8 +261,12 @@ def _table(rows: list[dict]) -> str:
             f"{row['cost_usd']:>7.4f} "
             f"{row['latency_s']:>5.2f}  {row['status']}"
         )
-        if row["summary_diff"] and row["summary_diff"]["mismatched"]:
-            for field, delta in row["summary_diff"]["mismatched"].items():
+        mismatched = {}
+        for key in ("summary_diff", "period_diff"):
+            if row.get(key):
+                mismatched.update(row[key]["mismatched"])
+        if mismatched:
+            for field, delta in mismatched.items():
                 lines.append(
                     f"{'':<46}   {field}: expected {delta['expected']}, got {delta['got']}"
                 )
@@ -230,10 +280,17 @@ def _table(rows: list[dict]) -> str:
 def _match(row: dict) -> str:
     """How many ground-truth fields matched exactly, out of how many were stated."""
     diff = row["summary_diff"]
-    if diff is None:
+    if diff is None and row.get("period_diff") is None:
         return "-"
+    if diff is None:
+        diff = {"matched": [], "mismatched": {}}
     matched = len(diff["matched"])
-    return f"{matched}/{matched + len(diff['mismatched'])}"
+    total = matched + len(diff["mismatched"])
+    periods = row.get("period_diff")
+    if periods is not None:
+        matched += len(periods["matched"])
+        total += len(periods["matched"]) + len(periods["mismatched"])
+    return f"{matched}/{total}"
 
 
 def _verdict(rows: list[dict]) -> str:
