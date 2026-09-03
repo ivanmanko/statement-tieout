@@ -22,7 +22,8 @@ class TestSharingOut:
         assert all(plan_ocr([1, 2], workers=8))
 
     def test_more_workers_than_pages_is_capped(self):
-        assert len(plan_ocr([1, 2], workers=8)) == 2
+        """Five pages clear the threshold, so they split — but into five lanes, not eight."""
+        assert len(plan_ocr([1, 2, 3, 4, 5], workers=8)) == 5
 
 
 class TestWhenNotToBother:

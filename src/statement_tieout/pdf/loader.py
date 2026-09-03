@@ -8,6 +8,8 @@ through exactly the same parser and the same verifier.
 
 from __future__ import annotations
 
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pdfplumber
@@ -16,6 +18,12 @@ from .model import Page, Word
 
 MIN_CHARS_PER_TEXT_PAGE = 20
 """Below this a page carries no usable text layer and is a scan (SPEC §7.2)."""
+
+MIN_PAGES_FOR_PARALLEL_OCR = 4
+"""Below this, starting processes costs more than the reading saves (SPEC §9)."""
+
+OCR_WORKERS = 4
+"""Not every core: the OCR runtime is already multi-threaded (SPEC §9)."""
 
 
 class ExtractionError(RuntimeError):
@@ -55,29 +63,63 @@ def _from_text_layer(number: int, source) -> Page:
     return Page(number=number, words=words, text=text, source="text")
 
 
+def plan_ocr(scanned: list[int], workers: int = OCR_WORKERS) -> list[list[int]]:
+    """Share the scanned pages out, round robin, or keep them in one slice.
+
+    Round robin rather than contiguous blocks because pages differ in how long
+    they take to read, and a block of dense ones would hold everything up.
+    """
+    if not scanned:
+        return []
+    if workers <= 1 or len(scanned) < MIN_PAGES_FOR_PARALLEL_OCR:
+        return [list(scanned)]
+    lanes = min(workers, len(scanned))
+    return [scanned[start::lanes] for start in range(lanes)]
+
+
 def _with_ocr(path: str | Path, pages: list[Page], scanned: list[int]) -> list[Page]:
-    """Re-read the pages with no text layer as pixels."""
-    import pypdfium2
-
-    from .ocr import read_page
-
+    """Re-read the pages with no text layer as pixels, in parallel where it pays."""
+    slices = plan_ocr(scanned, _worker_count())
     try:
-        document = pypdfium2.PdfDocument(path)
+        if len(slices) == 1:
+            results = [_read_slice(str(path), slices[0])]
+        else:
+            with ProcessPoolExecutor(max_workers=len(slices)) as pool:
+                results = list(pool.map(_read_slice, [str(path)] * len(slices), slices))
+    except ExtractionError:
+        raise
     except Exception as error:
         raise ExtractionError(f"could not rasterize {path}: {error}") from error
 
-    try:
-        for index in scanned:
-            words = read_page(document[index - 1])
-            pages[index - 1] = Page(
-                number=index,
+    for chunk in results:
+        for number, words in chunk:
+            pages[number - 1] = Page(
+                number=number,
                 words=words,
                 text=_as_text(words),
                 source="ocr" if words else "empty",
             )
+    return pages
+
+
+def _worker_count() -> int:
+    override = os.environ.get("OCR_WORKERS")
+    if override and override.isdigit():
+        return max(1, int(override))
+    return min(OCR_WORKERS, os.cpu_count() or 1)
+
+
+def _read_slice(path: str, numbers: list[int]) -> list[tuple[int, list[Word]]]:
+    """One worker's share. Opens the file itself so no image crosses a process."""
+    import pypdfium2
+
+    from .ocr import read_page
+
+    document = pypdfium2.PdfDocument(path)
+    try:
+        return [(number, read_page(document[number - 1])) for number in numbers]
     finally:
         document.close()
-    return pages
 
 
 def _as_text(words: list[Word]) -> str:
