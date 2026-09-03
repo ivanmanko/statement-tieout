@@ -21,6 +21,12 @@ from ..schema import DateRange, Transaction
 
 DEPOSIT, WITHDRAWAL = "deposit", "withdrawal"
 
+MAX_FRAGMENT_GAP = 4.0
+"""Horizontal gap within which two boxes are one value split by OCR (SPEC §7.2)."""
+
+MAX_FRAGMENTS = 3
+"""How many boxes one printed value may have been split across."""
+
 
 @dataclass
 class ParsedRows:
@@ -106,8 +112,7 @@ class _State:
     def _date_span_at(self, words: list[Word], index: int) -> int:
         """How many words from `index` spell a date, longest first; 0 if none."""
         for length in range(min(MAX_DATE_WORDS, len(words) - index), 0, -1):
-            text = " ".join(word.text for word in words[index : index + length])
-            if self._parse_date(text) is not None:
+            if self._parse_join(words[index : index + length]) is not None:
                 return length
         return 0
 
@@ -190,15 +195,22 @@ class _State:
         return (start is not None and when < start) or (end is not None and when > end)
 
     def _date_on(self, line: list[Word]) -> date | None:
-        """The date is whatever the words in the date column spell, joined.
+        """The date the words in the date column spell, joined longest-first.
 
-        `extract_words` splits on whitespace, so `Jan 28, 2025` arrives as
-        three words; longest join first, so a wider format wins over a
-        prefix of it.
+        Two joins are tried: space-separated, because `extract_words` splits
+        `Jan 28, 2025` into three; and bare, because OCR splits one printed
+        date across touching boxes (`01-21` as `0`, `1-2`, `1`).
         """
-        in_column = [w.text for w in line if self.profile.date_column.holds(w.center)]
+        in_column = [w for w in line if self.profile.date_column.holds(w.center)]
         for length in range(min(len(in_column), MAX_DATE_WORDS), 0, -1):
-            when = self._parse_date(" ".join(in_column[:length]))
+            when = self._parse_join(in_column[:length])
+            if when is not None:
+                return when
+        return None
+
+    def _parse_join(self, words: list[Word]) -> date | None:
+        for text in _joins(words):
+            when = self._parse_date(text)
             if when is not None:
                 return when
         return None
@@ -219,20 +231,55 @@ class _State:
         return candidate if candidate >= start else candidate.replace(year=start.year + 1)
 
     def _money_on(self, line: list[Word]) -> list[_Money]:
-        found = []
-        for word in line:
-            value = _as_money(word.text)
-            if value is None:
+        """Every amount on the line, rejoining values OCR split across boxes.
+
+        A column holds one value per row, so two touching fragments inside one
+        are one number (SPEC §7.2). Joining is tried only when the word alone
+        is not already an amount.
+        """
+        words = sorted(line, key=lambda word: word.x0)
+        found: list[_Money] = []
+        index = 0
+        while index < len(words):
+            span, value = self._amount_at(words, index)
+            if span == 0:
+                index += 1
                 continue
-            column = _column_index(self.profile.amount_columns, word.center)
-            is_balance = (
-                self.profile.balance_column is not None
-                and self.profile.balance_column.holds(word.center)
-            )
-            if column is None and not is_balance:
-                continue  # money inside the description band is text, not an amount
-            found.append(_Money(value=value, column=column, is_balance=is_balance))
+            group = words[index : index + span]
+            placed = self._place(group, value)
+            if placed is not None:
+                found.append(placed)
+            index += span
         return found
+
+    def _amount_at(self, words: list[Word], index: int) -> tuple[int, Decimal | None]:
+        """How many boxes from `index` spell one amount, and its value."""
+        value = _as_money(words[index].text)
+        if value is not None:
+            return 1, value
+        for length in range(min(MAX_FRAGMENTS, len(words) - index), 1, -1):
+            group = words[index : index + length]
+            if not _touching(group):
+                continue
+            for text in _joins(group, decimal=True):
+                joined = _as_money(text)
+                if joined is not None:
+                    return length, joined
+        return 0, None
+
+    def _place(self, group: list[Word], value: Decimal | None) -> _Money | None:
+        """Assign an amount to its column, or drop it as text inside a description."""
+        if value is None:
+            return None
+        center = (group[0].x0 + group[-1].x1) / 2
+        column = _column_index(self.profile.amount_columns, center)
+        is_balance = (
+            self.profile.balance_column is not None
+            and self.profile.balance_column.holds(center)
+        )
+        if column is None and not is_balance:
+            return None  # money inside the description band is text, not an amount
+        return _Money(value=value, column=column, is_balance=is_balance)
 
     def _is_description_only(self, line: list[Word]) -> bool:
         """SPEC §7.15: a continuation carries words only in the description band."""
@@ -274,6 +321,25 @@ class _State:
                 f"{self.yearless_rows} row(s) used a date format carrying no year and no "
                 "statement period was known, so the year is a placeholder"
             )
+
+
+def _touching(words: list[Word]) -> bool:
+    """Boxes that sit flush against one another — one value, split by OCR."""
+    return all(
+        later.x0 - earlier.x1 <= MAX_FRAGMENT_GAP
+        for earlier, later in zip(words, words[1:], strict=False)
+    )
+
+
+def _joins(words: list[Word], decimal: bool = False) -> list[str]:
+    """The ways these boxes might spell one value, most likely first."""
+    texts = [word.text for word in words]
+    forms = [" ".join(texts)]
+    if len(texts) > 1 and _touching(words):
+        forms.append("".join(texts))
+        if decimal and len(texts[-1]) == 2 and texts[-1].isdigit():
+            forms.append("".join(texts[:-1]) + "." + texts[-1])
+    return forms
 
 
 def _as_money(text: str) -> Decimal | None:

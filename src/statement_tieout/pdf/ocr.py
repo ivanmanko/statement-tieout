@@ -20,6 +20,8 @@ import re
 from dataclasses import dataclass
 from functools import cache
 
+from ..layout.dates import DATE_FORMATS, YEARLESS_FORMATS, parse_date
+from ..money import parse_money
 from .model import Word
 
 OCR_SCALE = 3.0
@@ -34,9 +36,9 @@ _BOUNDARY = re.compile(
     r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])|(?<=[a-z])(?=[A-Z])|(?<=:)|(?=:)"
 )
 
-#: The one repair (SPEC §7.2): a thousands separator misread as a slash, a pipe
-#: or a period. The final group must be exactly two digits, which keeps
-#: European notation (1.234,56) and dotted dates (04.01.2025) out of it.
+#: A thousands separator misread as a slash, a pipe or a period (SPEC §7.2).
+#: The final group must be exactly two digits, which keeps European notation
+#: (1.234,56) and dotted dates (04.01.2025) out of it.
 _MISREAD_SEPARATOR = re.compile(r"^\d{1,3}(?:[/|.]\d{3})+\.\d{2}$")
 
 
@@ -83,11 +85,37 @@ def _tokenize(text: str) -> list[str]:
     return [_repair(token) for token in tokens if token and token != ":"]
 
 
+#: Glyphs OCR returns for the digit 1 (SPEC §7.2).
+_ONE_LOOKALIKES = str.maketrans("iIl|", "1111")
+
+
 def _repair(token: str) -> str:
     if _MISREAD_SEPARATOR.match(token):
         head, _, cents = token.rpartition(".")
         return f"{head.replace('/', ',').replace('|', ',').replace('.', ',')}.{cents}"
-    return token
+    return _repair_ones(token)
+
+
+def _repair_ones(token: str) -> str:
+    """Substitute 1 for its look-alikes, but only where that makes the token parse.
+
+    Self-verifying: a substitution that yields neither a date nor an amount is
+    thrown away, which is what leaves `Ixonia` and `Life` alone.
+    """
+    candidate = token.translate(_ONE_LOOKALIKES)
+    if candidate == token:
+        return token
+    return candidate if _means_something(candidate) else token
+
+
+def _means_something(token: str) -> bool:
+    if parse_date(token, DATE_FORMATS + YEARLESS_FORMATS) is not None:
+        return True
+    try:
+        parse_money(token)
+    except ValueError:
+        return False
+    return True
 
 
 def read_page(page, scale: float = OCR_SCALE) -> list[Word]:
