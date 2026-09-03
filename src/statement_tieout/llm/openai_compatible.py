@@ -8,6 +8,7 @@ contract, and here it is also checked a second time by reconciliation.
 
 from __future__ import annotations
 
+import json
 import os
 
 from .client import Completion, Price
@@ -22,10 +23,13 @@ PRICES: dict[str, Price] = {
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-v4-flash"
 
-MAX_TOKENS = 8192
-"""Generous: DeepSeek's default model reasons before answering, and the cap
-covers reasoning *and* answer. Measured — at 2048 it produced 2048 tokens of
-reasoning and an empty answer, and at 4096 it did the same."""
+MAX_TOKENS = 2048
+"""Ample once reasoning is off: a layout profile is under a hundred tokens."""
+
+DEFAULT_THINKING = "disabled"
+"""Measured against DeepSeek: with reasoning on, this task never converged —
+8192 output tokens of reasoning and an empty answer, 115 s and $0.0119 per
+call. With it off: 84 tokens, 2 s. Set LLM_THINKING=enabled to restore it."""
 
 
 class OpenAICompatibleClient:
@@ -33,6 +37,7 @@ class OpenAICompatibleClient:
         from openai import OpenAI
 
         self._model = os.environ.get("LLM_MODEL", DEFAULT_MODEL)
+        self._thinking = os.environ.get("LLM_THINKING", DEFAULT_THINKING)
         self._client = client or OpenAI(
             api_key=os.environ.get("LLM_API_KEY"),
             base_url=os.environ.get("LLM_BASE_URL", DEFAULT_BASE_URL),
@@ -44,12 +49,23 @@ class OpenAICompatibleClient:
         return PRICES.get(self._model)
 
     def complete_json(self, system: str, user: str, schema: dict) -> Completion:
+        # No strict schema mode here, so the schema travels in the prompt and
+        # the answer is validated on our side. A schema the model is never
+        # shown is a schema it invents.
+        instructions = (
+            f"{system}\n\nReturn JSON matching exactly this schema — the same "
+            f"property names, no others:\n{json.dumps(schema)}"
+        )
         response = self._client.chat.completions.create(
             model=self._model,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            messages=[
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": user},
+            ],
             response_format={"type": "json_object"},
             temperature=0,
             max_tokens=MAX_TOKENS,
+            extra_body={"thinking": {"type": self._thinking}},
         )
         usage = response.usage
         return Completion(
