@@ -12,6 +12,8 @@ else.
 import json
 from dataclasses import dataclass, field
 
+import pytest
+
 from statement_tieout.layout import SideStrategy
 from statement_tieout.layout.llm import MAX_SAMPLE_PAGES, profile_from_pages
 from statement_tieout.llm.client import Completion

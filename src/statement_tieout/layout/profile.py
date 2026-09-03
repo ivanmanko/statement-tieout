@@ -9,9 +9,10 @@ rather than a code change.
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SideStrategy(StrEnum):
@@ -21,6 +22,39 @@ class SideStrategy(StrEnum):
     SIGNED = "signed"
     SECTIONS = "sections"
     BALANCE_DELTA = "balance_delta"
+
+
+#: Human date notation a model may answer with, longest token first so `YYYY`
+#: is not consumed by `YY` (SPEC §7.4).
+_HUMAN_DATE_TOKENS = (
+    ("YYYY", "%Y"), ("MMMM", "%B"), ("MMM", "%b"), ("MON", "%b"),
+    ("DD", "%d"), ("MM", "%m"), ("YY", "%y"),
+)
+_DATE_TOKEN = re.compile("|".join(token for token, _ in _HUMAN_DATE_TOKENS))
+
+
+def normalize_date_format(fmt: str) -> str | None:
+    """`MM/DD/YYYY` -> `%m/%d/%Y`. None when it cannot be read as a format.
+
+    A model asked for a date format answers in the notation people use. A
+    profile that validates but parses no dates is worse than a rejected one,
+    because nothing downstream notices until the totals disagree.
+    """
+    if "%" in fmt:
+        return fmt
+    mapping = dict(_HUMAN_DATE_TOKENS)
+    translated, cursor, saw_token = [], 0, False
+    for match in _DATE_TOKEN.finditer(fmt.upper()):
+        if match.start() > cursor and any(c.isalnum() for c in fmt[cursor : match.start()]):
+            return None  # letters we cannot account for: not a format
+        translated.append(fmt[cursor : match.start()])
+        translated.append(mapping[match.group(0)])
+        cursor = match.end()
+        saw_token = True
+    if not saw_token or any(c.isalnum() for c in fmt[cursor:]):
+        return None
+    translated.append(fmt[cursor:])
+    return "".join(translated)
 
 
 class Column(BaseModel):
@@ -43,6 +77,15 @@ class LayoutProfile(BaseModel):
     date_formats: list[str] = Field(default_factory=lambda: ["%m/%d/%Y"])
     deposit_sections: list[str] = Field(default_factory=list)
     withdrawal_sections: list[str] = Field(default_factory=list)
+
+    @field_validator("date_formats")
+    @classmethod
+    def _as_strptime(cls, formats: list[str]) -> list[str]:
+        """Accept human notation from a model, refuse a profile with no usable format."""
+        usable = [f for f in (normalize_date_format(x) for x in formats) if f]
+        if not usable:
+            raise ValueError("no usable date format: expected strptime directives")
+        return usable
 
     @property
     def description_x1(self) -> float:

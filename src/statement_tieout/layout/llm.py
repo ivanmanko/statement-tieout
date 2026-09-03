@@ -47,7 +47,9 @@ side_strategy tells the parser how a row becomes a deposit or a withdrawal:
   signed        - one amount column carrying -, (), a trailing -, or CR/DR
   sections      - headings such as "Deposits and Additions" partition the rows
   balance_delta - a running-balance column; the step decides the direction
-Choose the one the sample actually supports. x0/x1 are the horizontal bounds \
+date_formats are Python strptime directives, e.g. "%m/%d/%Y" or "%b %d".
+
+Choose the side_strategy the sample actually supports. x0/x1 are the horizontal bounds \
 of a column, generous enough to hold every value in it."""
 
 _FENCED = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
