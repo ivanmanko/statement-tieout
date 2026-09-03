@@ -72,6 +72,30 @@ class Completeness(BaseModel):
     statement: str = ""
 
 
+class SideCheck(BaseModel):
+    """One side of the ledger against its own printed total."""
+
+    printed: Decimal | None = None
+    parsed: Decimal = ZERO
+    difference: Decimal | None = None
+
+    @field_serializer("printed", "difference")
+    def _optional_money(self, value: Decimal | None) -> float | None:
+        return None if value is None else money_to_json(value)
+
+    @field_serializer("parsed")
+    def _money(self, value: Decimal) -> float:
+        return money_to_json(value)
+
+
+class Sides(BaseModel):
+    """Which half of the page to look at (SPEC §8)."""
+
+    deposits: SideCheck
+    withdrawals: SideCheck
+    statement: str
+
+
 class AuditException(BaseModel):
     kind: Attribution
     description: str
@@ -93,6 +117,7 @@ class PeriodAudit(BaseModel):
     verdict: Verdict
     attribution: Attribution
     completeness: Completeness
+    sides: Sides
     residual: Decimal
     extraction_uncertainty: Decimal
     statement_inconsistency: Decimal
@@ -129,6 +154,7 @@ def audit(result: ExtractResult) -> AuditReport:
 
 def _period(index: int, period: PeriodResult, warnings: list[str]) -> PeriodAudit:
     completeness = _completeness(period)
+    sides = _sides(period)
     doubts = _doubt_items(period, warnings)
     residual = period.reconciliation.residual
 
@@ -147,12 +173,58 @@ def _period(index: int, period: PeriodResult, warnings: list[str]) -> PeriodAudi
         verdict=verdict,
         attribution=attribution,
         completeness=completeness,
+        sides=sides,
         residual=residual,
         extraction_uncertainty=extraction,
         statement_inconsistency=inconsistency,
         transactions=len(period.transactions),
         exceptions=exceptions,
-        next_steps=_next_steps(verdict, completeness, doubts, attribution, period),
+        next_steps=_next_steps(verdict, completeness, sides, doubts, attribution),
+    )
+
+
+def _sides(period: PeriodResult) -> Sides:
+    """Compare each side with its own printed total, and say where to look."""
+    summary = period.summary
+    printed = summary.printed_fields
+    parsed_in = sum((t.deposit for t in period.transactions if t.deposit), ZERO)
+    parsed_out = sum((t.withdrawal for t in period.transactions if t.withdrawal), ZERO)
+
+    deposits = _side(summary.deposits_total, parsed_in, "deposits_total" in printed)
+    withdrawals = _side(summary.withdrawals_total, parsed_out, "withdrawals_total" in printed)
+    return Sides(
+        deposits=deposits,
+        withdrawals=withdrawals,
+        statement=_where_to_look(deposits, withdrawals),
+    )
+
+
+def _side(printed: Decimal, parsed: Decimal, was_printed: bool) -> SideCheck:
+    if not was_printed:
+        return SideCheck(printed=None, parsed=parsed, difference=None)
+    return SideCheck(printed=printed, parsed=parsed, difference=parsed - printed)
+
+
+def _where_to_look(deposits: SideCheck, withdrawals: SideCheck) -> str:
+    if deposits.difference is None or withdrawals.difference is None:
+        return (
+            "The statement does not print both side totals, so a difference cannot be "
+            "attributed to one side of the page."
+        )
+    money_in, money_out = deposits.difference, withdrawals.difference
+    if money_in == ZERO and money_out == ZERO:
+        return "Both sides agree with the printed totals."
+    if money_in != ZERO and money_out != ZERO:
+        return (
+            f"Both sides differ: the money in by {format_money(money_in)} and the "
+            f"payments out by {format_money(money_out)}."
+        )
+    off, half = (money_in, "money in") if money_out == ZERO else (money_out, "payments out")
+    agreed = "payments out" if money_out == ZERO else "money in"
+    direction = "short by" if off < ZERO else "over by"
+    return (
+        f"The {agreed} agrees with the printed total exactly. The {half} is "
+        f"{direction} {format_money(abs(off))} — look there."
     )
 
 
@@ -319,11 +391,13 @@ def _verdict(
 def _next_steps(
     verdict: Verdict,
     completeness: Completeness,
+    sides: Sides,
     doubts: list[AuditException],
     attribution: Attribution,
-    period: PeriodResult,
 ) -> list[str]:
     steps = [verdict.next_step_hint]
+    if verdict is not Verdict.TIED:
+        steps.append(sides.statement)
     if not completeness.bounded:
         steps.append(
             "Do not sample from this population: the statement prints no counts, so its "

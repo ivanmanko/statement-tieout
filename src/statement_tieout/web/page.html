@@ -138,6 +138,8 @@ details.period > summary::before{content:"▸";color:var(--accent)}
 details.period[open] > summary::before{content:"▾"}
 details.period .body{padding:0 1rem 1.2rem;display:flex;flex-direction:column;gap:1.2rem}
 .hidden{display:none!important}
+p.where-to-look{margin:0;font-size:1rem;font-weight:500}
+td.off{color:var(--debit);font-weight:500}
 .foot{border-top:1px solid var(--rule);padding-top:.9rem;font-size:.85rem;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -355,6 +357,40 @@ details.period .body{padding:0 1rem 1.2rem;display:flex;flex-direction:column;ga
     return split;
   }
 
+  function sides(period) {
+    var block = el("div", "block");
+    block.appendChild(el("h3", null, "Where to look"));
+    block.appendChild(el("p", "where-to-look", period.sides.statement));
+
+    var scroll = el("div", "scroll");
+    var table = el("table");
+    var head = el("thead");
+    var row = el("tr");
+    ["", "Printed on the statement", "Found", "Difference"].forEach(function (name, i) {
+      row.appendChild(el("th", i ? "n" : null, name));
+    });
+    head.appendChild(row);
+    table.appendChild(head);
+
+    var body = el("tbody");
+    [["Money in", period.sides.deposits], ["Payments out", period.sides.withdrawals]]
+      .forEach(function (pair) {
+        var side = pair[1];
+        var line = el("tr");
+        line.appendChild(el("td", null, pair[0]));
+        line.appendChild(el("td", "n", side.printed === null ? "not printed" : money(side.printed)));
+        line.appendChild(el("td", "n", money(side.parsed)));
+        var diff = el("td", "n", side.difference === null ? "—" : money(side.difference));
+        if (side.difference) diff.classList.add("off");
+        line.appendChild(diff);
+        body.appendChild(line);
+      });
+    table.appendChild(body);
+    scroll.appendChild(table);
+    block.appendChild(scroll);
+    return block;
+  }
+
   function completeness(period) {
     var block = el("div", "block");
     block.appendChild(el("h3", null, "Completeness of the population"));
@@ -484,6 +520,7 @@ details.period .body{padding:0 1rem 1.2rem;display:flex;flex-direction:column;ga
     var body = el("div", "body");
     body.appendChild(figures(period));
     body.appendChild(steps(period));
+    body.appendChild(sides(period));
     body.appendChild(completeness(period));
     var found = exceptions(period);
     if (found) body.appendChild(found);
