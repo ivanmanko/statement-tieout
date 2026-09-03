@@ -241,28 +241,28 @@ confidently wrong side is not.
 
 ## Known weaknesses
 
-- **One transaction per line.** A section printing two side by side loses
-  half its rows (above). The single largest correctness gap.
+- **One transaction per line.** A section printing two side by side loses half
+  its rows (Renasant, above). The largest correctness gap.
+- **A row that keeps only its balance is lost.** OCR sometimes drops a row's
+  description and amount together; the amount is recoverable from the balance
+  step, and that is not built (above).
+- **Some periods never learn their date range**, so their yearless row dates
+  keep a placeholder year — 375 rows across the binder. The money is
+  unaffected, which is why reconciliation does not notice; the dates are
+  simply wrong, and the warning says so.
 - **Descriptions from a scan are less faithful.** OCR returns line segments
   and drops spaces, so an all-capitals description stays one token
-  (`REMOTEDEPOSITLINK`). Amounts, dates and balances are unaffected, which is
-  why reconciliation still works — but a consumer of `description` should
-  know.
+  (`REMOTEDEPOSITLINK`). Amounts, dates and balances are unaffected.
 - **A column seen only once is not claimed.** Alignment identifies a money
   column from two occurrences; one is genuinely ambiguous with an amount
-  inside a sentence, and is left out rather than guessed.
+  inside a sentence.
 - **The bank name is the largest type on the page**, which on a scan whose
   logo OCRs onto two lines returns `RENASANT` rather than `RENASANT BANK`.
 - **Ground truth for the summary was read by the same eyes that wrote the
-  parser.** `printed_block_closes` catches a misread that breaks the block's
-  own arithmetic, but not one that preserves it. An independent reader would
-  be better.
-- **Latency on scans is ~3.4 s per page**, so ~51 s for fifteen pages. Fine
+  parser** — except on the Ixonia statement, where the assignment states the
+  expected output itself and the two sources agree.
+- **Latency on scans is ~2.5 s per page**: 251 s for the 99-page binder. Fine
   for a batch tool, wrong for an interactive one.
-- **Rung 2 is unmeasured.** It is built and tested against a stub, but no
-  sample has failed in a way that triggers it, so there is no real run to
-  quote a cost or a latency from. The $0.00 in the table is real, and it is
-  the whole story so far.
 
 ## Cut scope
 
