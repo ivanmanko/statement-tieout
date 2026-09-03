@@ -1,4 +1,4 @@
-# ADR-004: Tool Runner from the Anthropic SDK; provider is an install parameter
+# ADR-004: A provider-neutral tool loop; provider is an install parameter
 
 - **Status:** Accepted
 - **Date:** 2026-09-02
@@ -12,10 +12,20 @@ their own machines against statements we have never seen.
 
 ## Decision
 
-**Harness:** the tool-call loop from the regular `anthropic` package
-(`client.beta.messages.tool_runner` over tools we define — `read_page_text`,
-`find_amount`, `set_row`), with per-turn hooks enforcing the SPEC §7.17
-bounds on turns and dollars.
+**Harness:** a small tool-call loop of our own, over tools we define
+(`state`, `read_page`, `find_amount`, `list_rows`, `insert_row`, `drop_row`,
+`set_side`), with the SPEC §7.17 ceilings on turns and dollars checked before
+each turn.
+
+> **Amended in implementation.** This ADR originally specified
+> `client.beta.messages.tool_runner` from the `anthropic` package. That was
+> written before the provider became DeepSeek in practice, and a
+> vendor-specific loop cannot serve a provider chosen by env var — which is
+> the entire point of the section below. The loop now keeps a
+> **provider-neutral transcript** and each client renders it into its own wire
+> format (`tool_calls`/`tool` messages for OpenAI-compatible,
+> `tool_use`/`tool_result` blocks for Anthropic). About forty lines per
+> provider, and the loop itself is written once.
 
 **Provider:** selected by `LLM_PROVIDER` env var among `anthropic` (default),
 `bedrock`, `vertex`, `foundry`. The same SDK ships `AnthropicBedrockMantle`,
@@ -34,10 +44,11 @@ bounds on turns and dollars.
 2. **Shelling out to `claude -p`.** Rejected for the same deployment reason,
    plus reproducibility: `summary` is graded on exact match, and a subprocess
    agent re-reading a large PDF will not produce the same answer twice.
-3. **A hand-written `while stop_reason == "tool_use"` loop.** A close call —
-   about sixty lines, no beta surface. Chosen against because the Tool
-   Runner's per-turn hooks are precisely where the turn and cost ceilings
-   belong, and reimplementing them is the part most likely to be wrong.
+3. **A hand-written loop.** Originally rejected in favour of the Tool
+   Runner's per-turn hooks; **adopted after all**, because a loop tied to one
+   vendor's SDK cannot serve a provider selected by an env var. The ceilings
+   turned out to be two comparisons at the top of the loop — less code than
+   the hook plumbing they were meant to justify.
 4. **Pinning one cloud (Bedrock, because their stack is AWS + Google).**
    Rejected as a *choice*: making the provider an installation parameter is
    strictly better for a product deployed into each client's private VPC,
@@ -54,5 +65,7 @@ bounds on turns and dollars.
 
 ## Revisit when
 
-The repair loop needs tools the Tool Runner's hook model cannot express, or
-Anthropic promotes a different loop helper out of beta.
+A provider appears whose tool-calling wire format neither renderer covers, or
+the neutral transcript stops being able to express what a provider needs. That
+translation is the only vendor-specific code left in the repair path, so it is
+where the pressure would show first.
