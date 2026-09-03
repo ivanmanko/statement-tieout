@@ -137,7 +137,9 @@ class _Attempt:
         return self.parsed.warnings
 
 
-def _attempt(pages: list[Page], profile: LayoutProfile | None, reading) -> _Attempt:
+def _attempt(
+    pages: list[Page], profile: LayoutProfile | None, reading: HeaderReading
+) -> _Attempt:
     if profile is None:
         parsed = ParsedRows()
     else:
@@ -148,12 +150,12 @@ def _attempt(pages: list[Page], profile: LayoutProfile | None, reading) -> _Atte
             opening_balance=reading.beginning_balance,
         )
     summary = build_summary(reading, parsed.transactions)
-    result = _explain(reconcile(summary, parsed.transactions), reading, parsed, pages)
+    result = _explain(reconcile(summary, parsed.transactions), summary, reading, parsed, pages)
     return _Attempt(parsed=parsed, summary=summary, reconciliation=result)
 
 
 def _escalate(
-    pages: list[Page], reading, attempt: _Attempt, client: LLMClient
+    pages: list[Page], reading: HeaderReading, attempt: _Attempt, client: LLMClient
 ) -> tuple[_Attempt, Usage]:
     """Rung 2: ask the model for a layout, and keep it only if it reconciles."""
     feedback = attempt.reconciliation.detail or (
@@ -168,13 +170,16 @@ def _escalate(
 
 
 def _explain(
-    result: Reconciliation, reading: HeaderReading, parsed: ParsedRows, pages: list[Page]
+    result: Reconciliation,
+    summary: Summary,
+    reading: HeaderReading,
+    parsed: ParsedRows,
+    pages: list[Page],
 ) -> Reconciliation:
     """Attach a residual diagnosis to a period that did not reconcile (SPEC §5.1)."""
     if result.reconciled:
         return result
 
-    summary = build_summary(reading, parsed.transactions)
     aligned = len(parsed.balances) == len(parsed.transactions)
     finding = diagnose(
         summary,
