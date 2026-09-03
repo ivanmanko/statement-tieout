@@ -102,3 +102,19 @@ class TestColonSplitting:
     def test_a_colon_splits_the_segment(self):
         words = words_from_segments([segment("2024:LASTSTATEMENT", 0.0, 180.0)], scale=1.0)
         assert [w.text for w in words] == ["2024", "LASTSTATEMENT"]
+
+    def test_a_period_between_digit_groups_becomes_a_comma(self):
+        """Found on the Ixonia binder: `1,782.02` read as `1.782.02`."""
+        words = words_from_segments(
+            [segment("1.782.02", 0.0, 80.0), segment("63.779.55", 90.0, 180.0)], scale=1.0
+        )
+        assert [w.text for w in words] == ["1,782.02", "63,779.55"]
+
+    def test_european_notation_is_left_alone(self):
+        """`1.234,56` ends in a comma group, so it is not this misread."""
+        (word,) = words_from_segments([segment("1.234,56", 0.0, 80.0)], scale=1.0)
+        assert word.text == "1.234,56"
+
+    def test_a_dotted_date_is_left_alone(self):
+        (word,) = words_from_segments([segment("04.01.2025", 0.0, 80.0)], scale=1.0)
+        assert word.text == "04.01.2025"

@@ -255,12 +255,14 @@ Everything a developer would otherwise decide silently in code.
    is below `min_ocr_confidence = 0.5` is dropped and counted in a warning.
 
    **One OCR repair is applied, and only one.** A token shaped
-   `\d{1,3}([/|]\d{3})+\.\d{2}` — `32/537.69` — has its separators
-   rewritten to commas. Nothing else in a statement takes that shape: a date
+   `\d{1,3}([/|.]\d{3})+\.\d{2}` — `32/537.69`, `1.782.02`, `63.779.55` —
+   has its separators rewritten to commas. Nothing else in a statement takes that shape: a date
    has no `.dd` tail and no three-digit groups, so the rewrite cannot turn
    something else into money. It is applied because the misread is stable —
    the same token reads the same way at render scales 3, 4 and 5 — and it is
-   safe because a wrong repair still has to pass reconciliation.
+   safe because a wrong repair still has to pass reconciliation. Note the
+   final group must be exactly two digits, which is what keeps European
+   notation (`1.234,56`) and dotted dates (`04.01.2025`) out of it.
 
    **Consequence, recorded rather than hidden:** an all-capitals
    description with its spaces lost stays one token, so descriptions from a
