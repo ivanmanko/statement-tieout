@@ -332,3 +332,12 @@ class TestMultiColumnSummaryLines:
         p = page(line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "ACH MEDTRONIC"),
                       (LEFT_X, "-17,459.90"), (BALANCE_X, "1,992,427.24")))
         assert len(parse_rows([p], profile()).transactions) == 1
+
+    def test_a_multi_word_date_is_recognised_in_the_scan(self):
+        """`Apr 11` is two words; the real binder prints its dates that way."""
+        prof = profile()
+        prof.date_formats = ["%b %d"]
+        p = page(line(100.0, (DATE_X, "Apr 01"), (DESC_X, "607,330.75"),
+                      (200.0, "Apr 11"), (LEFT_X, "521,451.70"),
+                      (BALANCE_X, "1,010.00")))
+        assert parse_rows([p], prof).transactions == []

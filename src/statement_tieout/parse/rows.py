@@ -85,18 +85,31 @@ class _State:
     def _is_multi_column_summary(self, line: list[Word]) -> bool:
         """SPEC §7.13: date -> amount -> date again is a summary table, not a row.
 
-        A date inside a description is unaffected: no amount separates it from
-        the row's own date.
+        Dates are joined across words the same way the leading date is, because
+        a statement writes `Apr 11`, not `Apr11`. A date inside a description is
+        unaffected: no amount separates it from the row's own date.
         """
-        seen_date = seen_amount_after_date = False
-        for word in sorted(line, key=lambda w: w.x0):
-            if self._parse_date(word.text) is not None:
+        words = sorted(line, key=lambda word: word.x0)
+        index, seen_date, seen_amount_after_date = 0, False, False
+        while index < len(words):
+            span = self._date_span_at(words, index)
+            if span:
                 if seen_amount_after_date:
                     return True
-                seen_date = True
-            elif seen_date and _as_money(word.text) is not None:
+                seen_date, index = True, index + span
+                continue
+            if seen_date and _as_money(words[index].text) is not None:
                 seen_amount_after_date = True
+            index += 1
         return False
+
+    def _date_span_at(self, words: list[Word], index: int) -> int:
+        """How many words from `index` spell a date, longest first; 0 if none."""
+        for length in range(min(MAX_DATE_WORDS, len(words) - index), 0, -1):
+            text = " ".join(word.text for word in words[index : index + length])
+            if self._parse_date(text) is not None:
+                return length
+        return 0
 
     def _continuation(self, line: list[Word], parsed: ParsedRows) -> None:
         text = " ".join(word.text for word in line)
