@@ -281,3 +281,82 @@ work is discarded wholesale unless the period closes. It cost under a cent and
 could not have corrupted the output — which is the argument for putting the
 verifier in front of the model rather than behind it, made in numbers instead
 of prose.
+
+## A review of this work, and what survived checking it
+
+A second agent read the repository and produced a five-item backlog. Two items
+were real, one was a good idea I had not had, one was wrong about mechanism,
+and one was already disproved by a measurement in the README it cited. Working
+through it changed the code more than the list predicted, and never quite in
+the way the list predicted.
+
+**"Two transactions per line" was right about the file and wrong about the
+cause.** Renasant does print its cheque section two-up. But of its four
+missing rows only two are in that section; the other two are killed by OCR
+fragmentation — `363.80` arriving as `363` then `80`, `-13,495.14` as
+`-13,495` then `14`, `01-02` as `0` then `i-02`. Repairing the fragments and
+the `1`-as-`i` glyph took the residual from **13,871.16 to 749.82** and
+`deposits_total` from failing to `ok`, without touching the two-up layout at
+all. The remaining 749.82 is exactly the two cheques.
+
+**"Parallelise the OCR" was reasonable and is wrong for this workload.**
+Implemented across four processes, measured on the same 15-page file: **137 s
+against 100 s**. The ONNX runtime is already multi-threaded and saturates the
+cores, so four copies contend rather than divide. Reverted rather than tuned.
+The suggestion was sound in the abstract and the abstract was not the question.
+
+**"375 rows got a placeholder year, so inherit the year from a neighbouring
+period" solved a problem that did not exist.** Only one period of eleven had
+no date range, and the reason was not a missing year: the interest disclosure
+printed on the back of every statement says *"we take the beginning balance of
+your account each day…"*, which fired the period anchor and split one November
+statement in two — its printed totals in one period, its 176 transactions in
+the next. Requiring an **amount** on an anchor line fixed it, the two halves
+merged, the binder went from eleven periods to a correct ten, and the
+placeholder years disappeared as a side effect. Inheriting a year would have
+papered over a segmentation bug while leaving that statement unreconcilable.
+
+**And the guard for that fix broke three other period boundaries**, which is
+the part worth remembering. Requiring the label to sit at a word boundary
+rejected `FROMDEPOSITSYSTEM` as intended and also rejected
+`Beginning Balanceasof` — the same statement prints the phrase with a space on
+one page and glued on the next. Only the *leading* boundary can be required
+when the text has been through OCR.
+
+**"Run the repair agent with a real key and it will find the rows" was already
+tested.** It was run against DeepSeek: 5–6 calls, $0.006–0.008, and zero edits.
+And for the two rows whose amount OCR lost entirely, `find_amount` cannot help
+in principle — the number is not in the page text to be found. That is why the
+fix for those is deterministic (the balance step), and it is now built.
+
+### Measured effect of the whole exercise
+
+| | before | after |
+|---|---|---|
+| Renasant residual | 13,871.16 | **749.82** |
+| Renasant rows | 6 of 10 | **8 of 10** |
+| Ixonia period 1 residual | −68,872.21 | **−4,534.68** |
+| Ixonia period 1 rows | 186 of 192 | **189 of 192** |
+| Ixonia periods | 11 (one spurious) | **10 (correct)** |
+| Rows with a placeholder year | 375 | **0** |
+
+Nothing new reconciles. Every gap is smaller and every remaining one is named.
+
+### What was scoped and deliberately not built
+
+The two-up cheque section needs **section-local column geometry**: its date
+sits at x 153–188 and its amounts at 261–303, where the rest of the statement
+uses 49–88 and 512–584. Three coupled changes would be required — per-section
+columns, a per-section side strategy (its amounts are unsigned while the rest
+of the statement is signed), and reading the repeated `NUMBER DATE AMOUNT
+NUMBER DATE AMOUNT` header to learn the offset.
+
+It is not built because that section contains **one data row**. Any rule would
+be validated by a single example on a held-out file: I could measure that it
+works here, never that it generalises. That is the same trade I refused when
+declining to tune the agent's prompt, and refusing it twice is what makes the
+first refusal worth anything.
+
+Two real defects surfaced while scoping it and were fixed on their own merits:
+a wrapped description read as a section heading, and a full-width `****CHECKS****`
+banner discarded because it collided with the money columns.
