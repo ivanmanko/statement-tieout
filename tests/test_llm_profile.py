@@ -171,3 +171,49 @@ class TestSampleChoice:
         prompt = client.calls[0]["user"]
         assert "--- page 3 ---" in prompt
         assert "--- page 2 ---" not in prompt
+
+
+class TestDateFormatNormalisation:
+    """SPEC §7.4 — a profile is data the parser consumes, so it must be in its terms.
+
+    Measured: DeepSeek answered `MM/DD/YYYY`, which `strptime` cannot use. A
+    profile that validates but parses no dates is worse than a rejected one,
+    because nothing downstream notices until the totals disagree.
+    """
+
+    @pytest.mark.parametrize(
+        ("human", "strptime"),
+        [
+            ("MM/DD/YYYY", "%m/%d/%Y"),
+            ("mm/dd/yyyy", "%m/%d/%Y"),
+            ("DD-MM-YYYY", "%d-%m-%Y"),
+            ("YYYY-MM-DD", "%Y-%m-%d"),
+            ("MM/DD/YY", "%m/%d/%y"),
+            ("MM/DD", "%m/%d"),
+            ("MMM DD, YYYY", "%b %d, %Y"),
+            ("Mon DD", "%b %d"),
+        ],
+    )
+    def test_human_notation_is_translated(self, human, strptime):
+        payload = json.loads(VALID_PROFILE) | {"date_formats": [human]}
+        client = StubClient([json.dumps(payload)])
+        profile, _ = profile_from_pages([SAMPLE], client)
+        assert profile.date_formats == [strptime]
+
+    def test_a_real_strptime_format_is_left_alone(self):
+        payload = json.loads(VALID_PROFILE) | {"date_formats": ["%d %B %Y"]}
+        client = StubClient([json.dumps(payload)])
+        profile, _ = profile_from_pages([SAMPLE], client)
+        assert profile.date_formats == ["%d %B %Y"]
+
+    def test_an_untranslatable_format_is_dropped_not_kept(self):
+        payload = json.loads(VALID_PROFILE) | {"date_formats": ["whenever", "MM/DD/YYYY"]}
+        client = StubClient([json.dumps(payload)])
+        profile, _ = profile_from_pages([SAMPLE], client)
+        assert profile.date_formats == ["%m/%d/%Y"]
+
+    def test_a_profile_with_no_usable_format_is_refused(self):
+        payload = json.loads(VALID_PROFILE) | {"date_formats": ["whenever"]}
+        client = StubClient([json.dumps(payload)] * 3)
+        profile, _ = profile_from_pages([SAMPLE], client)
+        assert profile is None
