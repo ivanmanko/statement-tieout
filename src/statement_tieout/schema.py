@@ -75,6 +75,16 @@ class Transaction(BaseModel):
     deposit: Decimal | None = None
     withdrawal: Decimal | None = None
 
+    #: Where this row was read from (SPEC §8). An auditor referencing a
+    #: workpaper has to get from a line here back to the place on the page.
+    page: int | None = None
+    line: int | None = None
+
+    #: True when the amount came from the running-balance step rather than
+    #: from a printed figure (SPEC §7.10) — the tool's own doubt, and never
+    #: an audit finding.
+    recovered: bool = False
+
     @model_validator(mode="after")
     def _exactly_one_positive_side(self) -> Transaction:
         """SPEC §3 invariant 1: sign lives in the field choice, never in the value."""

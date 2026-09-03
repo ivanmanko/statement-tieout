@@ -54,7 +54,9 @@ def parse_rows(
     state = _State(profile=profile, period=period, previous_balance=opening_balance)
 
     for page in pages:
-        for line in page.lines():
+        state.page = page.number
+        for index, line in enumerate(page.lines()):
+            state.line_index = index
             state.consume(line, parsed)
 
     state.finish(parsed)
@@ -74,6 +76,8 @@ class _State:
     rejected_rows: int = 0
     summary_rows: int = 0
     recovered_rows: int = 0
+    page: int | None = None
+    line_index: int | None = None
 
     def consume(self, line: list[Word], parsed: ParsedRows) -> None:
         when = self._date_on(line)
@@ -118,6 +122,9 @@ class _State:
                 description=self._description_on(line),
                 deposit=step if step > ZERO else None,
                 withdrawal=-step if step < ZERO else None,
+                page=self.page,
+                line=self.line_index,
+                recovered=True,
             )
         )
         parsed.balances.append(balance)
@@ -197,6 +204,8 @@ class _State:
                 description=self._description_on(line),
                 deposit=abs(amount.value) if side == DEPOSIT else None,
                 withdrawal=abs(amount.value) if side == WITHDRAWAL else None,
+                page=self.page,
+                line=self.line_index,
             )
         except ValidationError:
             # SPEC §7.15: one malformed row must not cost the whole document.
