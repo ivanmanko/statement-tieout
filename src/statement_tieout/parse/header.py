@@ -326,15 +326,38 @@ def read_last4(lines: Sequence[RawLine]) -> str | None:
 
 def read_period(lines: Sequence[RawLine]) -> DateRange:
     """The stated statement period (SPEC §7.15). Also a period anchor."""
-    for line in _as_lines(lines):
+    resolved = _as_lines(lines)
+    for line in resolved:
         if not any(label in line.text.casefold() for label in PERIOD_LABELS):
             continue
         dates = find_dates(line.text)
         if len(dates) >= 2:
             return DateRange(start=dates[0], end=dates[-1])
         if dates:
-            return DateRange(end=dates[0])
-    return _cycle_pair(_as_lines(lines))
+            return _completed(DateRange(end=dates[0]), resolved)
+    return _completed(_cycle_pair(resolved), resolved)
+
+
+def _completed(period: DateRange, lines: Sequence[_Line]) -> DateRange:
+    """Fill a missing endpoint from `Beginning/Ending Balance as of <date>`.
+
+    Statements routinely print only a statement date in the header while
+    stating the real range beside the balances — and without a start, a
+    transaction line reading `Apr 01` has no year (SPEC §7.11).
+    """
+    start, end = period.start, period.end
+    if start is not None and end is not None:
+        return period
+    for line in lines:
+        dates = find_dates(line.text)
+        if not dates:
+            continue
+        squashed = _squash(line.text)
+        if start is None and any(_squash(x) in squashed for x in BEGINNING_LABELS):
+            start = dates[0]
+        elif end is None and any(_squash(x) in squashed for x in ENDING_LABELS):
+            end = dates[0]
+    return DateRange(start=start, end=end)
 
 
 def _cycle_pair(lines: Sequence[_Line]) -> DateRange:
