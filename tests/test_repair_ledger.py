@@ -63,7 +63,7 @@ def ledger(transactions=None, page_texts=("01/02 SOMETHING 100.00",)):
 class TestState:
     def test_state_reports_the_residual_and_the_checks(self):
         report = ledger().state()
-        assert "-200.00" in report
+        assert "-150.00" in report  # 1000 + 100 - 0 - 1250
         assert "deposits_total" in report
 
     def test_a_reconciled_ledger_says_so(self):
