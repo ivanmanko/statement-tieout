@@ -27,6 +27,8 @@ from .parse.segment import segment
 from .pdf.loader import is_scanned, load_pages
 from .pdf.model import Page, Word
 from .reconcile import diagnose, reconcile
+from .reconcile.agent import MAX_REPAIR_COST_USD, repair
+from .reconcile.repair import RepairLedger
 from .schema import Extraction, ExtractResult, PeriodResult, Reconciliation, Summary
 
 logger = logging.getLogger("statement_tieout")
@@ -66,7 +68,10 @@ def extract_result(pdf_path: str, *, client: LLMClient | None = None) -> Extract
 
     periods, spend = [], Usage()
     for group in segment(pages):
-        period, period_warnings, period_usage = extract_period(group, client)
+        # SPEC §7.17: the repair budget is for the whole file, not per period.
+        period, period_warnings, period_usage = extract_period(
+            group, client, MAX_REPAIR_COST_USD - spend.cost_usd
+        )
         periods.append(period)
         warnings.extend(period_warnings)
         spend.calls += period_usage.calls
@@ -75,7 +80,7 @@ def extract_result(pdf_path: str, *, client: LLMClient | None = None) -> Extract
         spend.cost_usd += period_usage.cost_usd
 
     extraction = Extraction(
-        path="llm_profile" if spend.calls else "deterministic",
+        path=_path_taken(spend, warnings),
         llm_calls=spend.calls,
         cost_usd=round(spend.cost_usd, 6),
         latency_s=round(time.monotonic() - started, 3),
@@ -86,8 +91,16 @@ def extract_result(pdf_path: str, *, client: LLMClient | None = None) -> Extract
     return result
 
 
+def _path_taken(spend: Usage, warnings: list[str]) -> str:
+    if any("repaired by rung 4" in warning for warning in warnings):
+        return "agentic_repair"
+    return "llm_profile" if spend.calls else "deterministic"
+
+
 def extract_period(
-    pages: list[Page], client: LLMClient | None = None
+    pages: list[Page],
+    client: LLMClient | None = None,
+    repair_budget_usd: float = MAX_REPAIR_COST_USD,
 ) -> tuple[PeriodResult, list[str], Usage]:
     """Parse and reconcile one statement period, climbing the ladder if needed.
 
@@ -105,8 +118,12 @@ def extract_period(
     usage = Usage()
 
     if not attempt.reconciliation.reconciled and client is not None:
-        better, usage = _escalate(pages, reading, attempt, client)
-        attempt = better
+        attempt, usage = _escalate(pages, reading, attempt, client)
+    if not attempt.reconciliation.reconciled and client is not None:
+        attempt, repair_usage = _repair(
+            pages, attempt, client, repair_budget_usd - usage.cost_usd
+        )
+        usage = _combined(usage, repair_usage)
 
     warnings = list(attempt.warnings)
     if profile is None and not usage.calls:
@@ -167,6 +184,42 @@ def _escalate(
 
     candidate = _attempt(pages, profile, reading)
     return (candidate if candidate.reconciliation.reconciled else attempt), usage
+
+
+def _repair(
+    pages: list[Page], attempt: _Attempt, client: LLMClient, budget_usd: float
+) -> tuple[_Attempt, Usage]:
+    """Rung 4: let the model edit the rows, and keep them only if the period closes."""
+    if budget_usd <= 0:
+        return attempt, Usage()
+
+    ledger = RepairLedger(attempt.summary, attempt.parsed.transactions, pages)
+    usage = repair(ledger, client, max_cost_usd=budget_usd)
+    if not ledger.reconciled:
+        return attempt, usage
+
+    repaired = ParsedRows(
+        transactions=ledger.result(),
+        balances=[],
+        warnings=[*attempt.parsed.warnings, f"{ledger.edits} row(s) repaired by rung 4"],
+    )
+    return (
+        _Attempt(
+            parsed=repaired,
+            summary=attempt.summary,
+            reconciliation=reconcile(attempt.summary, repaired.transactions),
+        ),
+        usage,
+    )
+
+
+def _combined(first: Usage, second: Usage) -> Usage:
+    return Usage(
+        calls=first.calls + second.calls,
+        prompt_tokens=first.prompt_tokens + second.prompt_tokens,
+        completion_tokens=first.completion_tokens + second.completion_tokens,
+        cost_usd=first.cost_usd + second.cost_usd,
+    )
 
 
 def _explain(

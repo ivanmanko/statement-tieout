@@ -12,15 +12,18 @@ import json
 from dataclasses import dataclass, field
 
 from statement_tieout.api import extract_period
-from statement_tieout.llm.client import Completion
+from statement_tieout.llm.client import Completion, ToolTurn
 
 from .helpers import DATE_X, DESC_X, LEFT_X, line, page, two_column_row
 
 
 @dataclass
 class StubClient:
+    """Answers rung 2 from a script; declines to repair anything on rung 4."""
+
     replies: list[str] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
+    tool_turns: list[ToolTurn] = field(default_factory=list)
 
     def complete_json(self, system: str, user: str, schema: dict) -> Completion:
         self.calls.append(user)
@@ -29,6 +32,12 @@ class StubClient:
             prompt_tokens=500,
             completion_tokens=40,
         )
+
+    def complete_with_tools(self, system: str, transcript: list[dict], tools: list[dict]):
+        self.calls.append(transcript[0]["text"])
+        if self.tool_turns:
+            return self.tool_turns.pop(0)
+        return ToolTurn(text="I cannot close this", prompt_tokens=300, completion_tokens=20)
 
 
 def reconciling_page():
@@ -100,7 +109,8 @@ class TestEscalationWhenItDoesNot:
             "withdrawal_sections": [],
         })])
         extract_period([unreadable_page()], client)
-        assert len(client.calls) == 1
+        assert client.calls, "the model was never asked"
+        assert "reconcile" in client.calls[0], "the first ask carries the verifier's refusal"
 
     def test_the_residual_is_handed_to_the_model_as_feedback(self):
         client = StubClient(["{}"])
@@ -126,8 +136,8 @@ class TestEscalationWhenItDoesNot:
     def test_usage_is_reported_even_when_the_model_did_not_help(self):
         client = StubClient(["{}", "{}", "{}"])
         _, _, usage = extract_period([unreadable_page()], client)
-        assert usage.calls == 3
-        assert usage.prompt_tokens == 1500
+        assert usage.calls == 4  # three profile attempts plus one repair turn
+        assert usage.prompt_tokens == 1800
 
 
 class TestNoClientConfigured:
@@ -174,7 +184,7 @@ class TestRepairRung:
         """Rung 2 answers nothing usable, so the repair loop gets its turn."""
         client = StubClient(["{}", "{}", "{}"])
         _, _, usage = extract_period([self.broken()], client)
-        assert usage.calls > 3  # three profile attempts, then the repair loop
+        assert usage.calls == 4  # three profile attempts, then one repair turn
 
     def test_a_repair_that_does_not_close_the_period_changes_nothing(self):
         client = StubClient(["{}"] * 20)
