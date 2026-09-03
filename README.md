@@ -15,7 +15,7 @@ what went wrong along the way is in [docs/ai/AI_NOTES.md](docs/ai/AI_NOTES.md).
 
 | | |
 |---|---|
-| Tests | 262 unit tests — no LLM, no network, no sample PDF required |
+| Tests | 308 unit tests — no LLM, no network, no sample PDF required |
 | Accuracy | measured by `evals/run_evals.py`, table below |
 | Cost | **$0.00 and zero API calls** on every sample, scans included |
 
@@ -47,7 +47,7 @@ free verifier accepts or rejects it, and we climb only on rejection:
 | 1 | cached profile for a known template fingerprint | $0 | no |
 | 2 | model profiles the layout from 1–2 **sample pages** | ~$0.002/call | yes |
 | 3 | model transcribes pages OCR reads poorly | N calls | no |
-| 4 | bounded agentic repair of a period that will not close | bounded | no |
+| 4 | bounded agentic repair of a period that will not close | ≤$0.25/file | yes |
 
 A model asked to transcribe three hundred rows will drop or double a few, and
 the balance equation will say so immediately — that is the trap the sample
@@ -62,9 +62,10 @@ kept **only if** the rows it produces reconcile. A model that makes things
 worse is discarded, so it can never turn an honest failure into a confident
 wrong result.
 
-**Every sample below is handled at rung 0**, so rung 2 never fires on them and
-every number in the accuracy table was produced without an API key. See
-[Cut scope](#cut-scope).
+**Every sample below is handled at rung 0**, so nothing above it fires on the
+two that reconcile, and every number in the accuracy table was produced
+without an API key at all. What rungs 2 and 4 do on the two that fail is
+[measured below](#and-the-model-rungs-did-not-help).
 
 ## Scans are ingest, not a special case
 
@@ -328,15 +329,31 @@ contract translates human date notation or refuses the profile: one that
 validates but parses no dates is worse than one that is rejected, because
 nothing notices until the totals disagree.
 
-### And it did not help
+### And the model rungs did not help
 
-On the two statements that fail, the model returned a valid profile in 2 calls
-for **$0.004**, the rows it produced did not reconcile, and the escalation
-**discarded it**. That is the measured answer to "does the model rung earn its
-keep here": no — neither failure is a misunderstanding of the layout. Finding
-that out cost less than half a cent and could not corrupt the result, which is
-the whole argument for putting a free verifier in front of a model rather than
-behind it.
+Both are built, bounded and measured. Neither fixes the two statements that
+fail, and that is the finding rather than a disappointment.
+
+**Rung 2** returned a valid layout profile in 2 calls for **$0.004**, the rows
+it produced did not reconcile, and the escalation discarded it.
+
+**Rung 4** ran the repair loop on the Renasant statement: **5–6 calls,
+$0.006–0.008, 22 s**. Traced, it called `state`, then `list_rows`, then read
+both pages — and stopped **without making a single edit**. It inspected the
+evidence and declined to guess, which is what its prompt tells it to do when
+it cannot find the answer, and it is the outcome I would rather have than four
+invented rows.
+
+Neither failure is a misunderstanding of the layout, and neither is a single
+lost row an agent can locate: Renasant needs a row model that reads two
+transactions from one line. **The prompt was deliberately not tuned until the
+file passed** — it is a held-out sample (SPEC §10.1), and tuning against it
+would make its result meaningless as a measurement.
+
+What this does establish is the shape: the model is reached only after a free
+check has refused the free answer, it is bounded before each turn rather than
+asked to be brief, and its work is thrown away unless the period closes. The
+whole exercise cost under a cent and could not have corrupted the output.
 
 The agent loop for rung 4 will be the Anthropic SDK's tool runner over domain
 tools, **not** the Claude Agent SDK: `extract()` must stay an ordinary Python
