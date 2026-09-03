@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from ..layout import Column, LayoutProfile, SideStrategy
 from ..layout.dates import MAX_DATE_WORDS, STAND_IN_YEAR, parse_date
-from ..money import parse_money
+from ..money import ZERO, parse_money
 from ..pdf.model import Page, Word
 from ..schema import DateRange, Transaction
 
@@ -62,6 +62,7 @@ class _State:
     pending: list[Word] = field(default_factory=list)
     unsectioned_rows: int = 0
     yearless_rows: int = 0
+    zero_rows: int = 0
 
     def consume(self, line: list[Word], parsed: ParsedRows) -> None:
         when = self._date_on(line)
@@ -101,6 +102,13 @@ class _State:
     ) -> None:
         amount = next(m for m in amounts if m.column is not None)
         balance = next((m.value for m in amounts if m.is_balance), None)
+
+        if amount.value == ZERO:
+            # SPEC §7.12: it moves no money and the contract cannot hold it.
+            self.zero_rows += 1
+            if balance is not None:
+                self.previous_balance = balance
+            return
 
         side = self._side_of(amount, balance)
         if side is None:
@@ -204,6 +212,11 @@ class _State:
             parsed.warnings.append(
                 f"{self.unsectioned_rows} row(s) appeared before any known section heading, "
                 "so their side could not be determined"
+            )
+        if self.zero_rows:
+            parsed.warnings.append(
+                f"{self.zero_rows} row(s) carried a zero amount and were skipped: they move "
+                "no money, and every transaction must carry one positive side"
             )
         if self.yearless_rows:
             parsed.warnings.append(
