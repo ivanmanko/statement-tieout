@@ -1,0 +1,77 @@
+"""Grouping words into lines on a page that was scanned at an angle.
+
+SPEC §7.2. A sheet fed a degree or two off square puts the last column of a
+row a whole line below the first, and every rule downstream — the column
+alignment, the row parser, the summary block — is stated in terms of lines.
+The page is read along its own angle instead of the sheet's.
+"""
+
+from dataclasses import replace
+
+from statement_tieout.pdf.model import Page, Word, estimate_skew
+
+from .helpers import line
+
+SLOPE = 0.021
+"""About 1.2 degrees — the tilt of the low-quality scan this came from."""
+
+
+def straight_rows(count: int = 12) -> list[Word]:
+    """A plain four-column table, one row per line, set square on the page."""
+    words: list[Word] = []
+    for index in range(count):
+        words.extend(
+            line(
+                100.0 + index * 12.0,
+                (30.0, f"01/{index + 1:02d}"),
+                (90.0, "ACH CREDIT VENDOR PAYMENT"),
+                (330.0, "1,809.28"),
+                (490.0, "67,182.89"),
+            )
+        )
+    return words
+
+
+def tilt(words: list[Word], slope: float) -> list[Word]:
+    """The same words as a scanner set a degree off square would place them."""
+    return [replace(word, top=word.top + word.x0 * slope) for word in words]
+
+
+class TestEstimatingTheAngle:
+    def test_a_square_page_has_no_angle(self):
+        assert estimate_skew(straight_rows()) == 0.0
+
+    def test_the_angle_of_a_tilted_page_is_recovered(self):
+        found = estimate_skew(tilt(straight_rows(), SLOPE))
+        assert abs(found - SLOPE) < 0.002
+
+    def test_a_tilt_the_other_way_too(self):
+        found = estimate_skew(tilt(straight_rows(), -SLOPE))
+        assert abs(found + SLOPE) < 0.002
+
+    def test_too_few_words_to_tell_is_no_angle(self):
+        assert estimate_skew(straight_rows(count=1)) == 0.0
+
+    def test_no_words_at_all(self):
+        assert estimate_skew([]) == 0.0
+
+
+class TestLinesFollowTheAngle:
+    def test_a_tilted_row_stays_one_line(self):
+        page = Page(number=1, words=tilt(straight_rows(), SLOPE), source="ocr")
+        lines = page.lines()
+        assert len(lines) == 12
+        assert all(len(group) == 7 for group in lines)
+
+    def test_the_row_keeps_its_reading_order(self):
+        page = Page(number=1, words=tilt(straight_rows(), SLOPE), source="ocr")
+        first = [word.text for word in page.lines()[0]]
+        assert first == ["01/01", "ACH", "CREDIT", "VENDOR", "PAYMENT", "1,809.28", "67,182.89"]
+
+    def test_a_square_scan_is_unchanged(self):
+        page = Page(number=1, words=straight_rows(), source="ocr")
+        assert len(page.lines()) == 12
+
+    def test_a_text_layer_is_never_deskewed(self):
+        """A text layer reports exact coordinates; there is no angle to find."""
+        assert Page(number=1, words=straight_rows(), source="text").skew == 0.0
