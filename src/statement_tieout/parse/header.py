@@ -42,6 +42,11 @@ LABELS: dict[str, tuple[str, ...]] = {
 #: Which count field rides along with which total (SPEC §7.5).
 _COUNT_OF = {"deposits_total": "deposits_count", "withdrawals_total": "withdrawals_count"}
 
+#: The summary fields that name a *side* of the page rather than a position on
+#: it. Chase, Bank of America and Wells Fargo all print the withdrawals total as
+#: `-$86,438.17`: the minus repeats what the label already says (SPEC §7.5).
+SIDE_TOTALS = ("deposits_total", "withdrawals_total")
+
 PERIOD_LABELS = ("statement period", "statement date", "for the period", "period covered")
 
 LETTERHEAD_LINES = 15
@@ -119,16 +124,25 @@ def read_header(
     horizontal = _horizontal_block(header)
     for field, labels in LABELS.items():
         if field in horizontal:
-            setattr(reading, field, horizontal[field])
+            setattr(reading, field, _as_printed(field, horizontal[field]))
             continue
         found = _find_labelled(header, labels) or _find_labelled(body, labels)
         if found is None:
             continue
         amount, count = found
-        setattr(reading, field, amount)
+        setattr(reading, field, _as_printed(field, amount))
         if count is not None and field in _COUNT_OF:
             setattr(reading, _COUNT_OF[field], count)
     return reading
+
+
+def _as_printed(field: str, amount: Decimal) -> Decimal:
+    """A side total is a magnitude; a balance keeps the sign the page gave it.
+
+    The sign of a side total is notation — the label already says which side.
+    The sign of a balance is information: an overdrawn account is a fact.
+    """
+    return abs(amount) if field in SIDE_TOTALS else amount
 
 
 def _as_lines(raw: Sequence[RawLine]) -> list[_Line]:

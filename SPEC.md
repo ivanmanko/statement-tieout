@@ -399,6 +399,15 @@ Everything a developer would otherwise decide silently in code.
    and is skipped — otherwise a description such as `LOCKBOX DEPOSITS AND
    CREDITS 8,193.03` would be read as a printed total.
 
+   **Sign:** a side total is stored as a **magnitude**, whatever sign the page
+   gave it. Chase, Bank of America and Wells Fargo all print the withdrawals
+   total as `-$86,438.17`, where the minus repeats what the label already
+   says. Read as a value it makes an honest extraction accuse itself: the
+   printed block stops closing against itself, and rows summing to exactly
+   the printed total are reported as disagreeing with it. Balances are the
+   exception and keep the sign the page gave them — an overdrawn account is a
+   fact about the account, not a way of writing a side.
+
    **Counts** are read only from a matching line carrying exactly one money
    token and exactly one bare integer (`Deposits and credits 81
    $1,214,254.05`); anything less clear-cut leaves the count `unavailable`
