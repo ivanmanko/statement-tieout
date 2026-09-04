@@ -287,9 +287,18 @@ Everything a developer would otherwise decide silently in code.
    `max_skew = 0.06` (about 3.4°) and then finely around the best. It is
    believed only when it reads `skew_margin = 1.05` times sharper than square,
    and only on a page carrying at least `min_words_for_skew = 30` words;
-   otherwise the page is square. Words are then grouped into lines along that
-   slope. A text layer reports exact coordinates, so it is square by
-   construction and never pays for the estimate.
+   otherwise the page is square. The words are then **put back square at
+   ingest**, so nothing downstream has to know the sheet was ever crooked.
+
+   The correction is applied in **both directions**, because a rotation moves
+   a word in both: down the page in proportion to how far right it sits, and
+   across the page in proportion to how far down. Correcting only the first
+   puts the lines back and leaves every column drifting sideways as the page
+   descends — measured on a 1.4° sheet, an amount column 35 points wide drifts
+   17 points from the first row to the last, so it no longer reads as a column
+   at all and §7.21.3 refuses to profile the page. A text layer reports exact
+   coordinates, so it is square by construction and never pays for the
+   estimate.
 
    The engine reports each segment as a **quadrilateral**, and on a tilted
    page its `top` is the height of its highest end alone. A token therefore

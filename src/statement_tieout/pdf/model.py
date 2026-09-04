@@ -85,6 +85,33 @@ def estimate_skew(words: list[Word]) -> float:
     return best
 
 
+def deskew(words: list[Word]) -> list[Word]:
+    """These words with the page's tilt taken out of them (SPEC §7.2).
+
+    A rotation moves a word in both directions at once: down the page in
+    proportion to how far right it sits, and across the page in proportion to
+    how far down. Correcting only the first puts the lines back and leaves the
+    columns drifting sideways as the page descends — and a column that drifts
+    is not a column, which is the evidence the profile is looking for.
+
+    Applied once, at ingest, so that nothing downstream has to know the page
+    was ever crooked. Returns the words unchanged when it reads square.
+    """
+    slope = estimate_skew(words)
+    if not slope:
+        return words
+    return [
+        Word(
+            text=word.text,
+            x0=word.x0 + word.top * slope,
+            x1=word.x1 + word.top * slope,
+            top=word.top - word.x0 * slope,
+            height=word.height,
+        )
+        for word in words
+    ]
+
+
 @dataclass(frozen=True)
 class Page:
     number: int
@@ -92,24 +119,12 @@ class Page:
     text: str = ""
     source: str = "text"
     """Which ingest backend produced this page: `text`, `ocr` or `empty`."""
-    skew: float = 0.0
-    """The slope its lines are set at. A text layer reports exact coordinates
-    and is therefore square by construction; only a scan can be crooked, so
-    only a scan pays for the estimate (SPEC §7.2)."""
-
-    def __post_init__(self) -> None:
-        if self.source == "ocr" and not self.skew:
-            object.__setattr__(self, "skew", estimate_skew(self.words))
-
-    def _row(self, word: Word) -> float:
-        """Where this word sits down the page, read along the page's own angle."""
-        return word.top - word.x0 * self.skew
 
     def lines(self, tolerance: float = LINE_TOLERANCE) -> list[list[Word]]:
         """Words grouped into visual lines, each ordered left to right."""
         grouped: list[list[Word]] = []
-        for word in sorted(self.words, key=lambda w: (self._row(w), w.x0)):
-            if grouped and self._row(word) - self._row(grouped[-1][0]) <= tolerance:
+        for word in sorted(self.words, key=lambda w: (w.top, w.x0)):
+            if grouped and word.top - grouped[-1][0].top <= tolerance:
                 grouped[-1].append(word)
             else:
                 grouped.append([word])

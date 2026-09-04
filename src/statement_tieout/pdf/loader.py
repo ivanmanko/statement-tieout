@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pdfplumber
 
-from .model import Page, Word
+from .model import Page, Word, deskew
 
 MIN_CHARS_PER_TEXT_PAGE = 20
 """Below this a page carries no usable text layer and is a scan (SPEC §7.2)."""
@@ -74,7 +74,7 @@ def _with_ocr(source: str | Path | bytes, pages: list[Page], scanned: list[int])
 
     try:
         for index in scanned:
-            words = read_page(document[index - 1])
+            words = deskew(read_page(document[index - 1]))
             pages[index - 1] = Page(
                 number=index,
                 words=words,
@@ -89,12 +89,12 @@ def _with_ocr(source: str | Path | bytes, pages: list[Page], scanned: list[int])
 def _as_text(words: list[Word]) -> str:
     """Reconstruct page text from OCR words, one line per visual row.
 
-    Declared as an OCR page so the reconstruction is read along the sheet's
-    own angle: these words came from pixels, and pixels can be crooked.
+    The words are square by the time they get here: the tilt of a scanned sheet
+    is taken out at ingest (SPEC §7.2).
     """
     return "\n".join(
         " ".join(word.text for word in line)
-        for line in Page(number=0, words=words, source="ocr").lines()
+        for line in Page(number=0, words=words).lines()
     )
 
 
