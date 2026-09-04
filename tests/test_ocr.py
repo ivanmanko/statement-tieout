@@ -206,15 +206,17 @@ class TestASegmentOnATiltedPage:
             rise=rise,
         )
 
+    def tops_left_to_right(self, rise: float) -> list[float]:
+        words = words_from_segments([self.tilted("ACH CREDIT VENDOR", 0.0, 240.0, rise)], scale=1.0)
+        return [word.top for word in sorted(words, key=lambda word: word.x0)]
+
     def test_each_token_takes_the_height_of_its_own_position(self):
-        words = words_from_segments([self.tilted("ACH CREDIT VENDOR", 0.0, 240.0, -12.0)], scale=1.0)
-        tops = [word.top for word in words]
+        tops = self.tops_left_to_right(-12.0)
         assert tops == sorted(tops, reverse=True)
         assert abs(tops[0] - 112.0) < 1.0
 
     def test_a_line_falling_to_the_right_too(self):
-        words = words_from_segments([self.tilted("ACH CREDIT VENDOR", 0.0, 240.0, 12.0)], scale=1.0)
-        tops = [word.top for word in words]
+        tops = self.tops_left_to_right(12.0)
         assert tops == sorted(tops)
         assert abs(tops[0] - 100.0) < 1.0
 

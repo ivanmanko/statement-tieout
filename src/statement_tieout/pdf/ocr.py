@@ -53,6 +53,27 @@ class Segment:
     top: float
     score: float
     bottom: float = 0.0
+    rise: float = 0.0
+    """How far the segment's line falls from its left end to its right. Zero on
+    a square page; on a scan set off square the box is a quadrilateral and
+    `top` is the height of its highest end alone (SPEC §7.2)."""
+
+    @property
+    def left_top(self) -> float:
+        """The height of the line at `x0`, which `top` only equals going down."""
+        return self.top if self.rise >= 0 else self.top - self.rise
+
+    def top_at(self, x: float) -> float:
+        """The height of the line under this segment at `x`."""
+        span = self.x1 - self.x0
+        if span <= 0:
+            return self.left_top
+        return self.left_top + (x - self.x0) / span * self.rise
+
+    @property
+    def text_height(self) -> float:
+        """Type size, with the tilt taken back out of the box (SPEC §7.19)."""
+        return max(self.bottom - self.top - abs(self.rise), 0.0)
 
 
 def words_from_segments(segments: list[Segment], scale: float) -> list[Word]:
@@ -73,8 +94,10 @@ def words_from_segments(segments: list[Segment], scale: float) -> list[Word]:
                     text=token,
                     x0=cursor / scale,
                     x1=(cursor + width) / scale,
-                    top=segment.top / scale,
-                    height=max(segment.bottom - segment.top, 0.0) / scale,
+                    # Along the segment's own line, not at its highest end: a
+                    # token inherits where it sits, not where the box starts.
+                    top=segment.top_at(cursor) / scale,
+                    height=segment.text_height / scale,
                 )
             )
             cursor += width
@@ -136,10 +159,24 @@ def read_page(page, scale: float = OCR_SCALE) -> list[Word]:
             top=min(point[1] for point in box),
             bottom=max(point[1] for point in box),
             score=float(score),
+            rise=_rise_of(box),
         )
         for box, text, score in (raw or [])
     ]
     return words_from_segments(segments, scale)
+
+
+def _rise_of(box) -> float:
+    """How far this box's top edge falls from its left corner to its right.
+
+    The engine returns a quadrilateral. Its two highest corners are the top
+    edge; on a square page they share a height and the rise is zero.
+    """
+    corners = sorted(box, key=lambda point: point[1])[:2]
+    left, right = sorted(corners, key=lambda point: point[0])
+    if right[0] == left[0]:
+        return 0.0
+    return float(right[1] - left[1])
 
 
 @cache

@@ -291,6 +291,16 @@ Everything a developer would otherwise decide silently in code.
    slope. A text layer reports exact coordinates, so it is square by
    construction and never pays for the estimate.
 
+   The engine reports each segment as a **quadrilateral**, and on a tilted
+   page its `top` is the height of its highest end alone. A token therefore
+   takes the height of the segment's line **at its own position** rather than
+   inheriting the box's, and the box's tilt is taken back out of the type
+   size before §7.19 looks for the letterhead — otherwise every wide box on a
+   crooked page reads as large type. Measured on a 1.2° scan: a 200-point
+   description sat four points off its own row while the date beside it sat
+   four points the other way, and every row of the statement broke into three
+   lines.
+
    **One OCR repair is applied, and only one.** A token shaped
    `\d{1,3}([/|.]\d{3})+\.\d{2}` — `32/537.69`, `1.782.02`, `63.779.55` —
    has its separators rewritten to commas. Nothing else in a statement takes that shape: a date
