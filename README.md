@@ -310,8 +310,46 @@ happen to have. Rung 0 **declines** when the page gives no evidence for any
 of them, rather than guessing: an escalation is a correct outcome, a
 confidently wrong side is not.
 
+### The held-out corpus is generated, not collected
+
+Four sample files cannot measure generalization, and statements are client
+data: they cannot be committed, so an accuracy figure that needs them can only
+be produced on the one machine they sit on. So the corpus is **written**
+instead —
+
+```bash
+uv run python evals/fixtures/generate.py
+uv run python evals/run_evals.py --samples samples/generated
+```
+
+— by [`evals/fixtures/generate.py`](evals/fixtures/generate.py), which is
+deterministic: the same seed lays out the same statements to the point, in any
+checkout, including one that has never seen a real statement. Each fixture
+takes a shape none of the samples has, and its ground truth is exact by
+construction rather than read off a page by eye.
+
+| fixture | what it stresses | result |
+|---|---|---|
+| `gen_01` two amount columns, text layer | the plainest shape there is | **11/11** |
+| `gen_02` signed column, **horizontal** summary block, no counts | both count checks must say `unavailable`, not `ok` | **9/9** |
+| `gen_03` section headings, no side column | the heading is the only thing saying which side | **11/11** |
+| `gen_04` the same table as a clean 200 DPI scan | every number arrives through OCR | **11/11** |
+| `gen_05` 150 DPI, **1.4° off square**, soft focus, grain | a tilt drifts columns as well as lines | **11/11** |
+| `gen_06` `Money out` / `Money in`, `01 Apr 25`, sterling | nothing may assume a dollar or an American date | 8/9 |
+
+Five reconcile to the cent for $0.00 and no API call. `gen_06` is the one that
+does not, and its two causes are named under
+[Known weaknesses](#known-weaknesses).
+
 ## Known weaknesses
 
+- **A British statement is not read.** Two causes, both in `gen_06`:
+  `01 Apr 25` is not among the declared date formats (SPEC §7.19), so the
+  period goes unread; and the two-column side rule takes the **left** column
+  for deposits, which is right for `Deposits | Withdrawals` and exactly wrong
+  for `Money out | Money in`. The fix is to read the table's own column
+  headings and let them say which side each column is, rather than assuming an
+  order.
 - **A section with its own column geometry is not read.** Renasant's cheque
   section puts dates at x 153–188 and amounts at 261–303, where the rest of
   that statement uses 49–88 and 512–584. See [Cut scope](#cut-scope).
