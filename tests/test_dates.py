@@ -83,3 +83,27 @@ class TestARangeGluedByItsHyphen:
 
     def test_a_postcode_is_not_a_date(self):
         assert find_dates("P.O.Box 6995,Portland,OR 97228-6995") == []
+
+
+class TestTheBritishNotation:
+    """`01 Apr 25` — a two-digit year after the month name.
+
+    Statements outside the United States write the day first and abbreviate
+    the year, and a statement period that goes unread takes the year off every
+    transaction row with it (SPEC §7.12).
+    """
+
+    def test_a_two_digit_year_after_the_month(self):
+        assert parse_date("01 Apr 25") == date(2025, 4, 1)
+
+    def test_a_full_month_name_too(self):
+        assert parse_date("30 April 25") == date(2025, 4, 30)
+
+    def test_the_range_a_british_header_prints(self):
+        assert find_dates("Statement Period: 01 Apr 25 to 30 Apr 25") == [
+            date(2025, 4, 1),
+            date(2025, 4, 30),
+        ]
+
+    def test_an_amount_is_still_not_a_date(self):
+        assert parse_date("18 455 20") is None
