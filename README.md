@@ -335,21 +335,24 @@ construction rather than read off a page by eye.
 | `gen_03` section headings, no side column | the heading is the only thing saying which side | **11/11** |
 | `gen_04` the same table as a clean 200 DPI scan | every number arrives through OCR | **11/11** |
 | `gen_05` 150 DPI, **1.4° off square**, soft focus, grain | a tilt drifts columns as well as lines | **11/11** |
-| `gen_06` `Money out` / `Money in`, `01 Apr 25`, sterling | nothing may assume a dollar or an American date | 8/9 |
+| `gen_06` `Money out` / `Money in`, `01 Apr 25`, sterling | nothing may assume a dollar or an American date | 9/9, does not reconcile |
 
-Five reconcile to the cent for $0.00 and no API call. `gen_06` is the one that
-does not, and its two causes are named under
-[Known weaknesses](#known-weaknesses).
+Five reconcile to the cent for $0.00 and no API call. `gen_06` reads every
+field on the page correctly — bank, account, period and all four printed
+totals — and still does not reconcile, which is the outcome the design is for:
+the rows disagree with the block and the report says so instead of averaging
+them. The cause is named under [Known weaknesses](#known-weaknesses).
 
 ## Known weaknesses
 
-- **A British statement is not read.** Two causes, both in `gen_06`:
-  `01 Apr 25` is not among the declared date formats (SPEC §7.19), so the
-  period goes unread; and the two-column side rule takes the **left** column
-  for deposits, which is right for `Deposits | Withdrawals` and exactly wrong
-  for `Money out | Money in`. The fix is to read the table's own column
-  headings and let them say which side each column is, rather than assuming an
-  order.
+- **The order of two amount columns is assumed, not read.** The side rule
+  takes the **left** column for deposits, which is right for
+  `Deposits | Withdrawals` and exactly wrong for `Money out | Money in` — the
+  British order, and `gen_06` in the corpus. Every field on that statement is
+  read correctly and it still cannot reconcile. The fix is to match the
+  table's own column headings against the side vocabulary and let them say
+  which column is which, falling back to the order only where the headings say
+  nothing.
 - **A section with its own column geometry is not read.** Renasant's cheque
   section puts dates at x 153–188 and amounts at 261–303, where the rest of
   that statement uses 49–88 and 512–584. See [Cut scope](#cut-scope).
