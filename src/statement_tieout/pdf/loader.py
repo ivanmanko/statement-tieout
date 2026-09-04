@@ -87,10 +87,14 @@ def _with_ocr(source: str | Path | bytes, pages: list[Page], scanned: list[int])
 
 
 def _as_text(words: list[Word]) -> str:
-    """Reconstruct page text from OCR words, one line per visual row."""
+    """Reconstruct page text from OCR words, one line per visual row.
+
+    Declared as an OCR page so the reconstruction is read along the sheet's
+    own angle: these words came from pixels, and pixels can be crooked.
+    """
     return "\n".join(
         " ".join(word.text for word in line)
-        for line in Page(number=0, words=words).lines()
+        for line in Page(number=0, words=words, source="ocr").lines()
     )
 
 

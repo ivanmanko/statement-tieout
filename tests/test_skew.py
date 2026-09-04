@@ -8,12 +8,20 @@ The page is read along its own angle instead of the sheet's.
 
 from dataclasses import replace
 
-from statement_tieout.pdf.model import Page, Word, estimate_skew
+from statement_tieout.pdf.model import LINE_TOLERANCE, Page, Word, estimate_skew
 
 from .helpers import line
 
 SLOPE = 0.021
 """About 1.2 degrees — the tilt of the low-quality scan this came from."""
+
+PAGE_WIDTH = 612.0
+"""US Letter. The angle only has to be right to within less than one line
+across the widest page there is, which is what these tests assert."""
+
+
+def within_a_line(found: float, actual: float) -> bool:
+    return abs(found - actual) * PAGE_WIDTH < LINE_TOLERANCE
 
 
 def straight_rows(count: int = 12) -> list[Word]:
@@ -42,12 +50,10 @@ class TestEstimatingTheAngle:
         assert estimate_skew(straight_rows()) == 0.0
 
     def test_the_angle_of_a_tilted_page_is_recovered(self):
-        found = estimate_skew(tilt(straight_rows(), SLOPE))
-        assert abs(found - SLOPE) < 0.002
+        assert within_a_line(estimate_skew(tilt(straight_rows(), SLOPE)), SLOPE)
 
     def test_a_tilt_the_other_way_too(self):
-        found = estimate_skew(tilt(straight_rows(), -SLOPE))
-        assert abs(found + SLOPE) < 0.002
+        assert within_a_line(estimate_skew(tilt(straight_rows(), -SLOPE)), -SLOPE)
 
     def test_too_few_words_to_tell_is_no_angle(self):
         assert estimate_skew(straight_rows(count=1)) == 0.0

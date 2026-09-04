@@ -276,6 +276,21 @@ Everything a developer would otherwise decide silently in code.
    contain no letters and no case transitions. A segment whose confidence
    is below `min_ocr_confidence = 0.5` is dropped and counted in a warning.
 
+   **A scanned sheet may be set at an angle, and the page is read along it.**
+   Every rule downstream — column alignment, the row parser, the summary
+   block — is stated in terms of lines, and a sheet fed a degree off square
+   puts the last column of a row a whole line below its first: at 1.2°, the
+   drift across a page is 12 points against a `line_tolerance` of 3. The
+   slope is estimated once per scanned page by projection profile — deskewed
+   word tops are binned at `skew_bin = 1.0` points and the angle maximizing
+   the sum of the squared bin counts wins — swept coarsely across
+   `max_skew = 0.06` (about 3.4°) and then finely around the best. It is
+   believed only when it reads `skew_margin = 1.05` times sharper than square,
+   and only on a page carrying at least `min_words_for_skew = 30` words;
+   otherwise the page is square. Words are then grouped into lines along that
+   slope. A text layer reports exact coordinates, so it is square by
+   construction and never pays for the estimate.
+
    **One OCR repair is applied, and only one.** A token shaped
    `\d{1,3}([/|.]\d{3})+\.\d{2}` — `32/537.69`, `1.782.02`, `63.779.55` —
    has its separators rewritten to commas. Nothing else in a statement takes that shape: a date
