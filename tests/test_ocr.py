@@ -187,8 +187,8 @@ class TestASegmentOnATiltedPage:
     """SPEC §7.2 — an OCR box is a quadrilateral, and on a scan set off square
     its `top` is the height of its *highest* end alone.
 
-    Every token of a segment inherited that one number. On the 1.2° scan this
-    came from, a description 200 points wide then sat four points off its own
+    Every token of a segment inherited that one number. On a sheet set 1.2°
+    off square, a description 200 points wide then sat four points off its own
     row while the date beside it sat four points the other way, and the row
     broke into three lines: the date on one, the description on another, the
     amounts on a third. No column alignment survives that.

@@ -25,7 +25,7 @@ class TestDeclaredFormats:
 
 
 class TestOCRDropsTheSpaceAfterAComma:
-    """Wells Fargo, scanned: `Statement Period February 01,2026`.
+    """A scanned header: `Statement Period February 01,2026`.
 
     The comma is printed and the space beside it is not resolved, so the
     period goes unread and every row of the statement falls back to a
@@ -53,7 +53,7 @@ class TestOCRDropsTheSpaceAfterAComma:
 
 
 class TestARangeGluedByItsHyphen:
-    """Wells Fargo, scanned: `Statement Period February 1,2026-February 28,2026`.
+    """A scanned header: `Statement Period February 1,2026-February 28,2026`.
 
     The hyphen between the two ends of the range is set without spaces, so the
     year of the first date and the month of the second arrive as one word and

@@ -13,7 +13,8 @@ from statement_tieout.pdf.model import LINE_TOLERANCE, Page, Word, estimate_skew
 from .helpers import line
 
 SLOPE = 0.021
-"""About 1.2 degrees — the tilt of the low-quality scan this came from."""
+"""About 1.2 degrees. A sheet fed off square by this much is ordinary; the
+generated corpus carries one (`gen_05`) for the same reason."""
 
 PAGE_WIDTH = 612.0
 """US Letter. The angle only has to be right to within less than one line
