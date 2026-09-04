@@ -498,7 +498,12 @@ Everything a developer would otherwise decide silently in code.
     beside it. A statement period that goes unread for that reason takes the
     year off every transaction row with it. Both rewrites are only ever
     *tried*: a form that does not then parse under a declared format is
-    discarded, so `1,809.28` stays a number. When a
+    discarded, so `1,809.28` stays a number. A **hyphen between a digit and a
+    letter** is read as the space it stands for, which is how the two ends of
+    `February 1,2026-February 28,2026` become two dates instead of none; no
+    declared format puts a hyphen there, so none can be broken apart by it.
+    A hyphen between two digits is left alone — `04-01-2025` is a declared
+    format. When a
     statement is ambiguous between `MM/DD` and `DD/MM`, the format that
     yields all dates inside the stated period wins; if both do, `MM/DD` is
     assumed (US statements) and a warning is recorded. When the format

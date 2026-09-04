@@ -40,6 +40,11 @@ MAX_DATE_WORDS = 4
 #: `February 01, 2026` arrives as `February 01,2026` (SPEC §7.19).
 _RUN_TOGETHER_COMMA = re.compile(r",(?=\S)")
 
+#: The hyphen of a range set without spaces — `February 1,2026-February 28,2026`
+#: — which glues one date's year to the next date's month. No declared format
+#: puts a hyphen between a digit and a letter, so no date is broken by this.
+_RANGE_HYPHEN = re.compile(r"(?<=\d)-(?=[A-Za-z])|(?<=[A-Za-z])-(?=\d)")
+
 
 def _spellings(text: str) -> list[str]:
     """The forms this string might be, once OCR's habits are undone.
@@ -76,9 +81,14 @@ def parse_date(text: str, formats: Sequence[str] = DATE_FORMATS) -> date | None:
     return None
 
 
+def _words(text: str) -> list[str]:
+    """The line's words, with a range's hyphen treated as the space it stands for."""
+    return _RANGE_HYPHEN.sub(" ", text).split()
+
+
 def find_dates(text: str, formats: Sequence[str] = DATE_FORMATS) -> list[date]:
     """Every date in a line, left to right, longest match first at each position."""
-    tokens = text.split()
+    tokens = _words(text)
     found: list[date] = []
     index = 0
     while index < len(tokens):
@@ -95,7 +105,7 @@ def find_dates(text: str, formats: Sequence[str] = DATE_FORMATS) -> list[date]:
 
 def starts_with_date(text: str, formats: Sequence[str] = DATE_FORMATS) -> bool:
     """True when the line opens with a date, i.e. it is a transaction row."""
-    tokens = text.split()
+    tokens = _words(text)
     all_formats = tuple(formats) + YEARLESS_FORMATS
     return any(
         parse_date(" ".join(tokens[:length]), all_formats) is not None
