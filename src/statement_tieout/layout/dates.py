@@ -7,6 +7,7 @@ yet — that is what they are trying to work out.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from datetime import date, datetime
 
@@ -35,15 +36,35 @@ STAND_IN_YEAR = 1904
 MAX_DATE_WORDS = 4
 
 
+#: OCR sets the comma it sees and not the space beside it: a scanned
+#: `February 01, 2026` arrives as `February 01,2026` (SPEC §7.19).
+_RUN_TOGETHER_COMMA = re.compile(r",(?=\S)")
+
+
+def _spellings(text: str) -> list[str]:
+    """The forms this string might be, once OCR's habits are undone.
+
+    Every form is only ever *tried*: a rewrite that does not then parse as a
+    date under a declared format is discarded, so restoring the space cannot
+    turn `1,809.28` into anything.
+    """
+    forms: list[str] = []
+    for candidate in (text, _RUN_TOGETHER_COMMA.sub(", ", text)):
+        # Punctuation attaches to dates in the wild — `DECEMBER 31, 2024: LAST
+        # STATEMENT` — so a trailing colon or full stop is tried away as well.
+        for form in (candidate, candidate.rstrip(":;.")):
+            if form and form not in forms:
+                forms.append(form)
+    return forms
+
+
 def parse_date(text: str, formats: Sequence[str] = DATE_FORMATS) -> date | None:
     """The date this exact string spells, or None.
 
     A format carrying no year is parsed against `STAND_IN_YEAR` rather than
     strptime's default, which warns and cannot represent 29 February.
     """
-    # Punctuation attaches to dates in the wild — `DECEMBER 31, 2024: LAST
-    # STATEMENT` — so a trailing colon or full stop is tried away as well.
-    for attempt in (text, text.rstrip(":;.")):
+    for attempt in _spellings(text):
         for fmt in formats:
             yearless = "%Y" not in fmt and "%y" not in fmt
             candidate = f"{attempt} {STAND_IN_YEAR}" if yearless else attempt
@@ -52,8 +73,6 @@ def parse_date(text: str, formats: Sequence[str] = DATE_FORMATS) -> date | None:
                 return datetime.strptime(candidate, pattern).date()
             except ValueError:
                 continue
-        if attempt == text.rstrip(":;."):
-            break
     return None
 
 

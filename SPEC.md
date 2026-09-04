@@ -467,7 +467,13 @@ Everything a developer would otherwise decide silently in code.
     a statement without the column loses this check and nothing else.
 12. **Dates** are parsed with the profile's declared format, with a trailing
     `:`, `;` or `.` tried away as well — punctuation attaches to dates in
-    the wild (`DECEMBER 31, 2024: LAST STATEMENT`). When a
+    the wild (`DECEMBER 31, 2024: LAST STATEMENT`) — and with **the space
+    after a comma restored**: a scan reads `February 01, 2026` as
+    `February 01,2026`, because OCR sets the comma it sees and not the space
+    beside it. A statement period that goes unread for that reason takes the
+    year off every transaction row with it. Both rewrites are only ever
+    *tried*: a form that does not then parse under a declared format is
+    discarded, so `1,809.28` stays a number. When a
     statement is ambiguous between `MM/DD` and `DD/MM`, the format that
     yields all dates inside the stated period wins; if both do, `MM/DD` is
     assumed (US statements) and a warning is recorded. When the format
