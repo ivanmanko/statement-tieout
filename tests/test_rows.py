@@ -108,6 +108,31 @@ class TestSectionStrategy:
         assert first.deposit == Decimal("8193.03")
         assert second.withdrawal == Decimal("9635.89")
 
+    def test_a_heading_set_at_the_left_margin_still_opens_its_section(self):
+        """SPEC §7.6 — a section heading is a heading wherever it is set.
+
+        Statements print it at the left margin as often as indented into the
+        description column, and the first one usually sits above the first
+        transaction row. Read only where the descriptions are, the opening
+        section never opens and every row under it loses its side.
+        """
+        prof = profile(
+            SideStrategy.SECTIONS,
+            deposit_sections=("DEPOSITS AND OTHER CREDITS",),
+            withdrawal_sections=("WITHDRAWALS AND OTHER DEBITS",),
+            balance_column=None,
+        )
+        p = page(
+            line(90.0, (DATE_X, "DEPOSITS AND OTHER CREDITS")),
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "LOCKBOX"), (LEFT_X, "8,193.03")),
+            line(120.0, (DATE_X, "WITHDRAWALS AND OTHER DEBITS")),
+            line(130.0, (DATE_X, "01/03/2025"), (DESC_X, "CHECK 1041"), (LEFT_X, "9,635.89")),
+        )
+        parsed = parse_rows([p], prof)
+        assert [t.deposit for t in parsed.transactions] == [Decimal("8193.03"), None]
+        assert [t.withdrawal for t in parsed.transactions] == [None, Decimal("9635.89")]
+        assert not any("section" in w for w in parsed.warnings)
+
     def test_rows_before_any_heading_are_warned_about_not_guessed(self):
         prof = profile(
             SideStrategy.SECTIONS,
