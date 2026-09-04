@@ -181,3 +181,49 @@ class TestBannerSplitting:
             [segment("Illinois", 0.0, 60.0), segment("bill", 70.0, 100.0)], scale=1.0
         )
         assert [w.text for w in words] == ["Illinois", "bill"]
+
+
+class TestASegmentOnATiltedPage:
+    """SPEC §7.2 — an OCR box is a quadrilateral, and on a scan set off square
+    its `top` is the height of its *highest* end alone.
+
+    Every token of a segment inherited that one number. On the 1.2° scan this
+    came from, a description 200 points wide then sat four points off its own
+    row while the date beside it sat four points the other way, and the row
+    broke into three lines: the date on one, the description on another, the
+    amounts on a third. No column alignment survives that.
+    """
+
+    def tilted(self, text: str, x0: float, x1: float, rise: float, height: float = 12.0):
+        """A segment whose line rises `rise` points from its left end to its right."""
+        return Segment(
+            text=text,
+            x0=x0,
+            x1=x1,
+            top=100.0,
+            bottom=100.0 + height + abs(rise),
+            score=0.99,
+            rise=rise,
+        )
+
+    def test_each_token_takes_the_height_of_its_own_position(self):
+        words = words_from_segments([self.tilted("ACH CREDIT VENDOR", 0.0, 240.0, -12.0)], scale=1.0)
+        tops = [word.top for word in words]
+        assert tops == sorted(tops, reverse=True)
+        assert abs(tops[0] - 112.0) < 1.0
+
+    def test_a_line_falling_to_the_right_too(self):
+        words = words_from_segments([self.tilted("ACH CREDIT VENDOR", 0.0, 240.0, 12.0)], scale=1.0)
+        tops = [word.top for word in words]
+        assert tops == sorted(tops)
+        assert abs(tops[0] - 100.0) < 1.0
+
+    def test_a_square_segment_gives_every_token_one_height(self):
+        words = words_from_segments([segment("ACH CREDIT VENDOR", 0.0, 240.0)], scale=1.0)
+        assert {word.top for word in words} == {100.0}
+
+    def test_the_rise_is_not_read_as_type_size(self):
+        """The letterhead is found by type size; a tilt would inflate every
+        wide box and hand it the page."""
+        words = words_from_segments([self.tilted("RENASANT", 0.0, 200.0, -14.0)], scale=1.0)
+        assert abs(words[0].height - 12.0) < 0.001
