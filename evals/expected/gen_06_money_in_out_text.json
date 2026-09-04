@@ -1,0 +1,23 @@
+{
+  "provenance": {
+    "summary": "exact by construction \u2014 the generator laid these rows out",
+    "generator": "evals/fixtures/generate.py, deterministic from a fixed seed"
+  },
+  "account": {
+    "bank": "Thornbury Building Society",
+    "account_last4": "4417",
+    "period": {
+      "start": "2025-04-01",
+      "end": "2025-04-30"
+    }
+  },
+  "summary": {
+    "beginning_balance": 18455.2,
+    "ending_balance": -12309.29,
+    "deposits_total": 22928.62,
+    "withdrawals_total": 53693.11
+  },
+  "periods": 1,
+  "transactions_count": 30,
+  "notes": "The British shape: `Money out` before `Money in`, dates written `01 Apr 25`, and sterling. Nothing in the parser may assume a dollar or an American date."
+}

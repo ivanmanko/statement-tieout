@@ -1,0 +1,25 @@
+{
+  "provenance": {
+    "summary": "exact by construction \u2014 the generator laid these rows out",
+    "generator": "evals/fixtures/generate.py, deterministic from a fixed seed"
+  },
+  "account": {
+    "bank": "Aldergate Bank",
+    "account_last4": "6641",
+    "period": {
+      "start": "2025-01-01",
+      "end": "2025-01-31"
+    }
+  },
+  "summary": {
+    "beginning_balance": 311544.09,
+    "ending_balance": 304457.4,
+    "deposits_total": 47900.85,
+    "withdrawals_total": 54987.54,
+    "deposits_count": 18,
+    "withdrawals_count": 24
+  },
+  "periods": 1,
+  "transactions_count": 42,
+  "notes": "The same two-column shape as a clean scan: no text layer, so ingest goes through OCR and every number arrives through it."
+}

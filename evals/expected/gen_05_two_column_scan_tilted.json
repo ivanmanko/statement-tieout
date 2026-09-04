@@ -1,0 +1,25 @@
+{
+  "provenance": {
+    "summary": "exact by construction \u2014 the generator laid these rows out",
+    "generator": "evals/fixtures/generate.py, deterministic from a fixed seed"
+  },
+  "account": {
+    "bank": "Wrenfield National",
+    "account_last4": "2288",
+    "period": {
+      "start": "2025-02-01",
+      "end": "2025-02-28"
+    }
+  },
+  "summary": {
+    "beginning_balance": 96210.73,
+    "ending_balance": 86146.2,
+    "deposits_total": 45432.89,
+    "withdrawals_total": 55497.42,
+    "deposits_count": 21,
+    "withdrawals_count": 19
+  },
+  "periods": 1,
+  "transactions_count": 40,
+  "notes": "A sheet fed off square: 150 DPI, 1.4 degrees, soft focus and grain. The tilt is what breaks a page into lines that do not exist (SPEC \u00a77.2)."
+}

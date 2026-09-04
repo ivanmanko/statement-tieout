@@ -1,0 +1,23 @@
+{
+  "provenance": {
+    "summary": "exact by construction \u2014 the generator laid these rows out",
+    "generator": "evals/fixtures/generate.py, deterministic from a fixed seed"
+  },
+  "account": {
+    "bank": "Halloway Trust",
+    "account_last4": "5182",
+    "period": {
+      "start": "2025-06-01",
+      "end": "2025-06-30"
+    }
+  },
+  "summary": {
+    "beginning_balance": 42980.1,
+    "ending_balance": 2011.83,
+    "deposits_total": 24273.74,
+    "withdrawals_total": 65242.01
+  },
+  "periods": 1,
+  "transactions_count": 38,
+  "notes": "Text layer, one signed amount column, and a HORIZONTAL summary block \u2014 labels in one row, amounts in the next. No counts are printed, so both count checks must report `unavailable` rather than `ok`."
+}

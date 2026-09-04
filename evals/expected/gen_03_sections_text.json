@@ -1,0 +1,25 @@
+{
+  "provenance": {
+    "summary": "exact by construction \u2014 the generator laid these rows out",
+    "generator": "evals/fixtures/generate.py, deterministic from a fixed seed"
+  },
+  "account": {
+    "bank": "Pinebrook Savings",
+    "account_last4": "9024",
+    "period": {
+      "start": "2025-09-01",
+      "end": "2025-09-30"
+    }
+  },
+  "summary": {
+    "beginning_balance": 7715.42,
+    "ending_balance": 593.18,
+    "deposits_total": 36567.03,
+    "withdrawals_total": 43689.27,
+    "deposits_count": 17,
+    "withdrawals_count": 17
+  },
+  "periods": 1,
+  "transactions_count": 34,
+  "notes": "Text layer, NO side column at all: a heading above each run of rows is the only thing that says which side they are on (SPEC \u00a77.6)."
+}

@@ -1,0 +1,25 @@
+{
+  "provenance": {
+    "summary": "exact by construction \u2014 the generator laid these rows out",
+    "generator": "evals/fixtures/generate.py, deterministic from a fixed seed"
+  },
+  "account": {
+    "bank": "Kestrel Commerce Bank",
+    "account_last4": "7310",
+    "period": {
+      "start": "2025-03-01",
+      "end": "2025-03-31"
+    }
+  },
+  "summary": {
+    "beginning_balance": 184203.55,
+    "ending_balance": 181766.55,
+    "deposits_total": 54398.4,
+    "withdrawals_total": 56835.4,
+    "deposits_count": 22,
+    "withdrawals_count": 24
+  },
+  "periods": 1,
+  "transactions_count": 46,
+  "notes": "Text layer, two amount columns, printed counts. The plainest shape there is: everything the parser wants is on the page, so a failure here is the parser's alone."
+}
