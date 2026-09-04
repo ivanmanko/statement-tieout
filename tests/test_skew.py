@@ -8,7 +8,7 @@ The page is read along its own angle instead of the sheet's.
 
 from dataclasses import replace
 
-from statement_tieout.pdf.model import LINE_TOLERANCE, Page, Word, estimate_skew
+from statement_tieout.pdf.model import LINE_TOLERANCE, Page, Word, deskew, estimate_skew
 
 from .helpers import line
 
@@ -42,8 +42,21 @@ def straight_rows(count: int = 12) -> list[Word]:
 
 
 def tilt(words: list[Word], slope: float) -> list[Word]:
-    """The same words as a scanner set a degree off square would place them."""
-    return [replace(word, top=word.top + word.x0 * slope) for word in words]
+    """The same words as a scanner set a degree off square would place them.
+
+    A rotation moves a word in *both* directions: down the page in proportion
+    to how far right it sits, and across the page in proportion to how far
+    down. The second is the one that breaks columns rather than lines.
+    """
+    return [
+        replace(
+            word,
+            x0=word.x0 - word.top * slope,
+            x1=word.x1 - word.top * slope,
+            top=word.top + word.x0 * slope,
+        )
+        for word in words
+    ]
 
 
 class TestEstimatingTheAngle:
@@ -63,22 +76,28 @@ class TestEstimatingTheAngle:
         assert estimate_skew([]) == 0.0
 
 
-class TestLinesFollowTheAngle:
-    def test_a_tilted_row_stays_one_line(self):
-        page = Page(number=1, words=tilt(straight_rows(), SLOPE), source="ocr")
-        lines = page.lines()
+class TestPuttingThePageBackSquare:
+    def square(self, slope: float) -> Page:
+        return Page(number=1, words=deskew(tilt(straight_rows(), slope)), source="ocr")
+
+    def test_a_tilted_row_becomes_one_line_again(self):
+        lines = self.square(SLOPE).lines()
         assert len(lines) == 12
         assert all(len(group) == 7 for group in lines)
 
     def test_the_row_keeps_its_reading_order(self):
-        page = Page(number=1, words=tilt(straight_rows(), SLOPE), source="ocr")
-        first = [word.text for word in page.lines()[0]]
+        first = [word.text for word in self.square(SLOPE).lines()[0]]
         assert first == ["01/01", "ACH", "CREDIT", "VENDOR", "PAYMENT", "1,809.28", "67,182.89"]
 
-    def test_a_square_scan_is_unchanged(self):
-        page = Page(number=1, words=straight_rows(), source="ocr")
-        assert len(page.lines()) == 12
+    def test_the_columns_come_back_too(self):
+        """The rotation drifts a column across the page as it goes down it, and
+        a column that drifts is not a column — which is what the profile looks
+        for before it will parse anything (SPEC §7.21.3)."""
+        words = self.square(SLOPE).words
+        amounts = [word for word in words if word.text == "1,809.28"]
+        assert len(amounts) == 12
+        assert max(word.x1 for word in amounts) - min(word.x1 for word in amounts) < 1.0
 
-    def test_a_text_layer_is_never_deskewed(self):
-        """A text layer reports exact coordinates; there is no angle to find."""
-        assert Page(number=1, words=straight_rows(), source="text").skew == 0.0
+    def test_a_square_scan_is_left_alone(self):
+        words = straight_rows()
+        assert [word.x0 for word in deskew(words)] == [word.x0 for word in words]
