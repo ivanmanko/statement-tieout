@@ -397,3 +397,51 @@ class TestHorizontalBlockIsNotTheTableHeader:
             body_lines=self.table_header_and_first_row(),
         )
         assert reading.deposits_total is None
+
+
+class TestASideTotalIsAMagnitude:
+    """SPEC §7.5 — a side total names a side, so a minus on it is notation.
+
+    Chase, Bank of America and Wells Fargo all print the withdrawals total
+    as `-$86,438.17`. Read as a value it makes an honest extraction report
+    itself as broken: the printed block stops closing against itself and the
+    parsed rows stop matching the total they actually equal.
+    """
+
+    CHASE = [
+        "Beginning balance on April 01, 2026 $48,762.34",
+        "Deposits and other credits $110,850.55",
+        "Withdrawals and other debits -$86,438.17",
+        "Ending balance on April 30, 2026 $73,174.72",
+    ]
+
+    def test_a_leading_minus_on_the_withdrawals_total_is_notation(self):
+        assert read_header(self.CHASE).withdrawals_total == Decimal("86438.17")
+
+    def test_the_other_three_fields_are_unaffected(self):
+        reading = read_header(self.CHASE)
+        assert reading.beginning_balance == Decimal("48762.34")
+        assert reading.deposits_total == Decimal("110850.55")
+        assert reading.ending_balance == Decimal("73174.72")
+
+    def test_the_accounting_forms_too(self):
+        """SPEC §7.9 already reads these as negative; a side total is still a side."""
+        assert read_header(["Total withdrawals (2,154,309.25)"]).withdrawals_total == Decimal(
+            "2154309.25"
+        )
+        assert read_header(["Total deposits 2,180,764.90-"]).deposits_total == Decimal(
+            "2180764.90"
+        )
+
+    def test_a_balance_keeps_its_sign(self):
+        """An overdraft is a fact about the account, not a way of writing a side."""
+        reading = read_header(["Beginning balance -1,204.55", "Ending balance $300.00"])
+        assert reading.beginning_balance == Decimal("-1204.55")
+
+    def test_the_horizontal_block_signs_the_same_way(self):
+        reading = read_header([
+            line(60.0, (50.0, "Deposits and credits"), (300.0, "Withdrawals and debits")),
+            line(72.0, (50.0, "$110,850.55"), (300.0, "-$86,438.17")),
+        ])
+        assert reading.deposits_total == Decimal("110850.55")
+        assert reading.withdrawals_total == Decimal("86438.17")
