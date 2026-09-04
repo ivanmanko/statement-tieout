@@ -448,6 +448,13 @@ Everything a developer would otherwise decide silently in code.
       Additions", "Checks Paid", "Other Withdrawals"): the heading decides;
    4. `balance_delta` — a running-balance column: the sign of
       `balance[i] − balance[i−1]` decides.
+
+   Under `sections`, a heading is recognised **wherever on the line it is
+   set** — at the left margin as readily as indented into the description
+   column — and whether or not a transaction has been read yet. The first
+   heading of a sectioned statement sits above its first row, so a reader that
+   looks only where descriptions are never opens the opening section and
+   reports every row under it as having no side.
    When several are available the earliest applicable wins, and the others
    become *verifiers* rather than deciders.
 7. **Template fingerprint** (profile cache key): SHA-256 over the normalized

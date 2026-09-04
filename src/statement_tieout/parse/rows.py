@@ -63,6 +63,10 @@ def parse_rows(
     return parsed
 
 
+def _text(line: list[Word]) -> str:
+    return " ".join(word.text for word in line)
+
+
 @dataclass
 class _State:
     profile: LayoutProfile
@@ -92,6 +96,12 @@ class _State:
 
         if when is not None and self._recoverable(amounts):
             self._emit_from_balance(when, line, amounts, parsed)
+            return
+
+        # A section heading is a heading wherever it is set: statements print it
+        # at the left margin as often as indented into the description column,
+        # and the first one sits above the first row (SPEC §7.6).
+        if when is None and not amounts and self._matches_section(_text(line)):
             return
 
         if not amounts and self._is_description_only(line):
@@ -159,7 +169,7 @@ class _State:
         return 0
 
     def _continuation(self, line: list[Word], parsed: ParsedRows) -> None:
-        text = " ".join(word.text for word in line)
+        text = _text(line)
         if self._matches_section(text):
             return
         if parsed.transactions:
