@@ -23,6 +23,10 @@ DATE_FORMATS: tuple[str, ...] = (
     "%b %d %Y",
     "%d %B %Y",
     "%d %b %Y",
+    # Two-digit years, day first: the notation outside the United States.
+    # Tried last, so `01 Apr 2025` is never read as `%d %b %y` first.
+    "%d %B %y",
+    "%d %b %y",
 )
 
 #: Formats without a year, used only on transaction rows (SPEC §7.12).

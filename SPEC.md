@@ -506,7 +506,15 @@ Everything a developer would otherwise decide silently in code.
     balance column is present: `balance[i−1] ± amount[i] == balance[i]`. A
     break localizes the error to row *i*. It is a verifier, not a parser —
     a statement without the column loses this check and nothing else.
-12. **Dates** are parsed with the profile's declared format, with a trailing
+12. **Date notations** declared: `MM/DD/YYYY`, `MM/DD/YY`, `MM-DD-YYYY`,
+    `YYYY-MM-DD`, `Month DD, YYYY` and `Mon DD, YYYY`, `Month DD YYYY` and
+    `Mon DD YYYY`, `DD Month YYYY` and `DD Mon YYYY`, and — last, so a
+    four-digit year is never read as a two-digit one — `DD Month YY` and
+    `DD Mon YY`, which is what a statement written outside the United States
+    prints (`01 Apr 25`). The list lives in one module constant and this
+    section mirrors it; extending it requires editing both in one commit.
+
+    **Dates** are parsed with the profile's declared format, with a trailing
     `:`, `;` or `.` tried away as well — punctuation attaches to dates in
     the wild (`DECEMBER 31, 2024: LAST STATEMENT`) — and with **the space
     after a comma restored**: a scan reads `February 01, 2026` as
