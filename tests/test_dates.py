@@ -50,3 +50,36 @@ class TestOCRDropsTheSpaceAfterAComma:
     def test_a_comma_that_is_not_a_date_stays_unread(self):
         assert parse_date("1,809.28") is None
         assert find_dates("REMOTE DEPOSIT,LINK 1,809.28") == []
+
+
+class TestARangeGluedByItsHyphen:
+    """Wells Fargo, scanned: `Statement Period February 1,2026-February 28,2026`.
+
+    The hyphen between the two ends of the range is set without spaces, so the
+    year of the first date and the month of the second arrive as one word and
+    neither date can be read. No declared format puts a hyphen between a digit
+    and a letter, so separating them there cannot break a date apart.
+    """
+
+    def test_both_ends_of_the_range_are_read(self):
+        assert find_dates("Statement Period February 1,2026-February 28,2026") == [
+            date(2026, 2, 1),
+            date(2026, 2, 28),
+        ]
+
+    def test_a_spaced_range_is_unaffected(self):
+        assert find_dates("Statement period: January 01, 2025 - January 28, 2025") == [
+            date(2025, 1, 1),
+            date(2025, 1, 28),
+        ]
+
+    def test_a_hyphen_between_digits_is_left_alone(self):
+        """`04-01-2025` is a declared format; splitting it would destroy it."""
+        assert parse_date("04-01-2025") == date(2025, 4, 1)
+        assert find_dates("Beginning balance 04-01-2025") == [date(2025, 4, 1)]
+
+    def test_a_phone_number_is_not_a_date(self):
+        assert find_dates("Customer Service 1-800-CALL-WELLS(1-800-225-5935)") == []
+
+    def test_a_postcode_is_not_a_date(self):
+        assert find_dates("P.O.Box 6995,Portland,OR 97228-6995") == []
