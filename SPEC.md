@@ -639,7 +639,12 @@ Everything a developer would otherwise decide silently in code.
       larger than the address printed beside it — measured, `Fulton` and
       `Bank` are 18.4 pt on a line whose remaining words (`Lancaster, PA
       17604`) are 10.4. A rule keyed on lines returns the address too, and a
-      rule keyed on digits rejects any letterhead carrying a postcode. Where
+      rule keyed on digits rejects any letterhead carrying a postcode. A logo
+      set on **two lines** is one letterhead: the lines immediately before
+      and after the tallest word's line are joined to it when *every* word of
+      theirs is within the same size ratio — measured, `RENASANT` at 17.2 pt
+      over `BANK` at 15.2 pt read as `RENASANT` alone. A line only partly in
+      that size (a title beside small print) is not joined. Where
       no size information exists, the first line with no long run of digits
       is used. If nothing qualifies, `null` — never a guess.
     - **account_last4** — the trailing four digits of a masked token

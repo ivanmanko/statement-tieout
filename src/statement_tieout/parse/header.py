@@ -308,14 +308,31 @@ def _read_bank(lines: Sequence[_Line]) -> str | None:
         default=None,
     )
     if tallest is not None and tallest.height > 0:
-        home = next(line for line in candidates if tallest in line.words)
+        index = next(i for i, line in enumerate(candidates) if tallest in line.words)
         floor = tallest.height * LETTERHEAD_SIZE_RATIO
-        return " ".join(word.text for word in home.words if word.height >= floor)
+        # A logo set on two lines is one letterhead: the line before and the
+        # line after are joined when every word of theirs is in the same size.
+        first = index
+        while first > 0 and _all_in_size(candidates[first - 1], floor):
+            first -= 1
+        last = index
+        while last + 1 < len(candidates) and _all_in_size(candidates[last + 1], floor):
+            last += 1
+        return " ".join(
+            word.text
+            for line in candidates[first : last + 1]
+            for word in line.words
+            if word.height >= floor
+        )
 
     # No size information (a caller passing plain strings): fall back to the
     # older rule, which prefers a line carrying no long run of digits.
     plain = [line for line in candidates if not _LONG_DIGITS.search(line.text)]
     return (plain or candidates)[0].text.strip()
+
+
+def _all_in_size(line: _Line, floor: float) -> bool:
+    return bool(line.words) and all(word.height >= floor for word in line.words)
 
 
 def _could_be_a_letterhead(line: _Line) -> bool:
