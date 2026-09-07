@@ -222,3 +222,49 @@ class TestRungZeroOffersSeveralProfiles:
         period, _, _ = extract_period([reconciling_page(), self.listing_page()], client)
         assert period.reconciliation.reconciled
         assert client.calls == []
+
+
+class TestWhichFreeAttemptStands:
+    """SPEC §7.21 — when no candidate reconciles, the one that fails least badly.
+
+    Reconciled first; then more checks `ok`; then fewer rows whose amount had
+    to be inferred from the balance step (§7.10) — an inferred amount is the
+    tool's own doubt, and a profile that sees the amounts printed on the page
+    is a better reading than one that has to work them out; then the smaller
+    residual.
+    """
+
+    def rank(self, *, reconciled=False, ok=(), recovered=0, residual="0.00"):
+        from decimal import Decimal
+
+        from statement_tieout.api import free_rank
+        from statement_tieout.parse.rows import ParsedRows
+        from statement_tieout.schema import CheckState, Reconciliation, Transaction
+
+        checks = {name: CheckState.FAIL for name in ("balance_equation", "deposits_total")}
+        checks.update(dict.fromkeys(ok, CheckState.OK))
+        rows = [
+            Transaction(date="2025-01-01", description="x", deposit=Decimal("1.00"),
+                        recovered=i < recovered)
+            for i in range(max(recovered, 1))
+        ]
+        return free_rank(
+            Reconciliation(reconciled=reconciled, checks=checks, residual=Decimal(residual)),
+            ParsedRows(transactions=rows),
+        )
+
+    def test_reconciled_beats_everything(self):
+        assert self.rank(reconciled=True, ok=("balance_equation",), residual="0.00") > self.rank(
+            ok=("balance_equation", "deposits_total"), residual="0.01"
+        )
+
+    def test_more_checks_ok_beats_fewer(self):
+        assert self.rank(ok=("balance_equation",), residual="900.00") > self.rank(residual="1.00")
+
+    def test_fewer_inferred_rows_beats_a_smaller_residual(self):
+        assert self.rank(recovered=6, residual="152000.00") > self.rank(
+            recovered=86, residual="118000.00"
+        )
+
+    def test_the_smaller_residual_wins_last(self):
+        assert self.rank(residual="-10.00") > self.rank(residual="20.00")
