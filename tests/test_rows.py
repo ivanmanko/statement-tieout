@@ -551,3 +551,143 @@ class TestProvenance:
         dumped = parsed.transactions[2].model_dump(mode="json")
         assert dumped["page"] == 2
         assert dumped["line"] == 0
+
+
+class TestListingSetSeveralToALine:
+    """SPEC §7.22 — a listing prints several transactions to a line.
+
+    Measured on two of the four samples: a cheque section headed `NUMBER DATE
+    AMOUNT NUMBER DATE AMOUNT` (Renasant) and `Date Check No. Amount` repeated
+    three times (Ixonia). The header names the slots and where each one's
+    date and amount sit; every line under it is read slot by slot, into a
+    listing kept *apart* from the table's rows, because whether the listing
+    adds to the table or duplicates it is the verifier's call (api).
+    """
+
+    HEADER = ((30.0, "NUMBER"), (100.0, "DATE"), (170.0, "AMOUNT"),
+              (250.0, "NUMBER"), (320.0, "DATE"), (390.0, "AMOUNT"))
+    PERIOD = DateRange(start=date(2024, 12, 31), end=date(2025, 1, 31))
+
+    def yearless(self):
+        return profile(balance_column=None).model_copy(update={"date_formats": ["%m-%d"]})
+
+    def listing(self, *rows, heading="CHECKS", top=100.0):
+        lines = [line(top, (DESC_X, heading)), line(top + 12.0, *self.HEADER)]
+        for index, cells in enumerate(rows):
+            lines.append(line(top + 24.0 + index * 12.0, *cells))
+        return lines
+
+    def test_two_records_are_read_from_one_line(self):
+        p = page(*self.listing(
+            ((30.0, "1693"), (100.0, "01-02"), (170.0, "363.80"),
+             (250.0, "1694"), (320.0, "01-21"), (390.0, "386.02")),
+        ))
+        parsed = parse_rows([p], self.yearless(), period=self.PERIOD)
+        assert parsed.transactions == []
+        assert [(t.date, t.withdrawal) for t in parsed.listing] == [
+            (date(2025, 1, 2), Decimal("363.80")),
+            (date(2025, 1, 21), Decimal("386.02")),
+        ]
+
+    def test_a_partly_filled_last_line(self):
+        p = page(*self.listing(
+            ((30.0, "1693"), (100.0, "01-02"), (170.0, "363.80"),
+             (250.0, "1694"), (320.0, "01-21"), (390.0, "386.02")),
+            ((30.0, "1695"), (100.0, "01-30"), (170.0, "12.00")),
+        ))
+        parsed = parse_rows([p], self.yearless(), period=self.PERIOD)
+        assert [t.withdrawal for t in parsed.listing] == [
+            Decimal("363.80"), Decimal("386.02"), Decimal("12.00")
+        ]
+
+    def test_the_heading_says_which_side(self):
+        p = page(*self.listing(
+            ((30.0, "1693"), (100.0, "01-02"), (170.0, "363.80")), heading="CREDITS",
+        ))
+        (record,) = parse_rows([p], self.yearless(), period=self.PERIOD).listing
+        assert record.deposit == Decimal("363.80")
+
+    def test_a_header_naming_a_check_is_a_withdrawal_listing_without_a_heading(self):
+        header = ((30.0, "Date"), (70.0, "Check No."), (150.0, "Amount"),
+                  (230.0, "Date"), (270.0, "Check No."), (350.0, "Amount"))
+        p = page(
+            line(100.0, *header),
+            line(112.0, (30.0, "04/30"), (70.0, "40782"), (150.0, "10,003.00"),
+                 (230.0, "04/09"), (270.0, "40789"), (350.0, "6,148.64")),
+        )
+        prof = profile(balance_column=None).model_copy(update={"date_formats": ["%m/%d"]})
+        records = parse_rows([p], prof, period=DateRange(start=date(2025, 4, 1),
+                                                          end=date(2025, 4, 30))).listing
+        assert [(t.date, t.withdrawal) for t in records] == [
+            (date(2025, 4, 30), Decimal("10003.00")),
+            (date(2025, 4, 9), Decimal("6148.64")),
+        ]
+
+    def test_no_heading_and_no_check_leaves_the_records_unsided(self):
+        p = page(
+            line(100.0, *self.HEADER),
+            line(112.0, (30.0, "1693"), (100.0, "01-02"), (170.0, "363.80")),
+        )
+        parsed = parse_rows([p], self.yearless(), period=self.PERIOD)
+        assert parsed.listing == []
+        assert any("listing" in w and "side" in w for w in parsed.warnings)
+
+    def test_a_noise_line_inside_the_listing_does_not_end_it(self):
+        p = page(*self.listing(
+            ((30.0, "1693"), (100.0, "01-02"), (170.0, "363.80")),
+            ((10.0, "00001023"),),
+            ((30.0, "1695"), (100.0, "01-30"), (170.0, "12.00")),
+        ))
+        assert len(parse_rows([p], self.yearless(), period=self.PERIOD).listing) == 2
+
+    def test_a_line_that_fills_no_slot_ends_the_listing_and_is_read_as_usual(self):
+        p = page(
+            *self.listing(((30.0, "1693"), (100.0, "01-02"), (170.0, "363.80"))),
+            line(200.0, (DATE_X, "01-07"), (DESC_X, "WITHDRAWAL"), (LEFT_X, "-13,495.14")),
+        )
+        parsed = parse_rows([p], self.yearless(), period=self.PERIOD)
+        assert [t.withdrawal for t in parsed.listing] == [Decimal("363.80")]
+        assert [t.withdrawal for t in parsed.transactions] == [Decimal("13495.14")]
+
+    def test_a_listing_ends_with_its_page(self):
+        first = page(*self.listing(((30.0, "1693"), (100.0, "01-02"), (170.0, "363.80"))))
+        second = page(line(60.0, (30.0, "1695"), (100.0, "01-30"), (170.0, "12.00")), number=2)
+        parsed = parse_rows([first, second], self.yearless(), period=self.PERIOD)
+        assert len(parsed.listing) == 1
+
+    def test_a_header_with_one_slot_is_not_a_listing(self):
+        p = page(
+            line(100.0, (DESC_X, "CHECKS")),
+            line(112.0, (DATE_X, "DATE"), (LEFT_X, "AMOUNT")),
+            line(124.0, (DATE_X, "01-02"), (DESC_X, "CHECK 1693"), (LEFT_X, "-363.80")),
+        )
+        parsed = parse_rows([p], self.yearless(), period=self.PERIOD)
+        assert parsed.listing == []
+        assert [t.withdrawal for t in parsed.transactions] == [Decimal("363.80")]
+
+    def test_ocr_fragments_inside_a_slot_are_joined(self):
+        """Measured: `01-02` arrives as `0`, `1-02`; `363.80` as `363`, `80`."""
+        p = page(
+            *self.listing()[:2],
+            [word("1693", 30.0, 124.0), word("0", 100.0, 124.0), word("1-02", 106.0, 124.0),
+             word("363", 170.0, 124.0), word("80", 188.0, 124.0)],
+        )
+        (record,) = parse_rows([p], self.yearless(), period=self.PERIOD).listing
+        assert (record.date, record.withdrawal) == (date(2025, 1, 2), Decimal("363.80"))
+
+    def test_a_lookalike_inside_a_joined_date_is_repaired(self):
+        """Measured: `01-21` arrives as `0`, `1-2`, `i` — the glyph repair sees no
+        digit in `i` alone, so the join is where `1` is tried for it."""
+        p = page(
+            *self.listing()[:2],
+            [word("1694", 30.0, 124.0), word("0", 100.0, 124.0), word("1-2", 106.0, 124.0),
+             word("i", 124.0, 124.0), word("386.02", 170.0, 124.0)],
+        )
+        (record,) = parse_rows([p], self.yearless(), period=self.PERIOD).listing
+        assert record.date == date(2025, 1, 21)
+
+    def test_records_carry_their_page_and_line(self):
+        p = page(*self.listing(((30.0, "1693"), (100.0, "01-02"), (170.0, "363.80"))), number=3)
+        (record,) = parse_rows([p], self.yearless(), period=self.PERIOD).listing
+        assert (record.page, record.line) == (3, 2)
+        assert record.recovered is False

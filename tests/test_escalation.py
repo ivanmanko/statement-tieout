@@ -268,3 +268,73 @@ class TestWhichFreeAttemptStands:
 
     def test_the_smaller_residual_wins_last(self):
         assert self.rank(residual="-10.00") > self.rank(residual="20.00")
+
+
+def listing_lines(top: float, *rows, heading: str = "CHECKS PAID"):
+    """A cheque listing, two to a line, under its own repeated header."""
+    lines = [
+        line(top, (DESC_X, heading)),
+        line(top + 12.0, (DATE_X, "Date"), (80.0, "Check No."), (150.0, "Amount"),
+             (230.0, "Date"), (280.0, "Check No."), (350.0, "Amount")),
+    ]
+    for index, cells in enumerate(rows):
+        lines.append(line(top + 24.0 + index * 12.0, *cells))
+    return lines
+
+
+def period_with_cheques(*, in_the_table: bool):
+    """Six table rows and two cheques. The cheques are either *only* in the
+    listing, or in the table as well — the listing looks the same both ways."""
+    cheques = [("1693", "363.80"), ("1694", "386.02")]
+    table = [
+        ("IN A", "100.00", None),
+        ("IN B", "200.00", None),
+        ("OUT C", None, "50.00"),
+        ("IN D", "300.00", None),
+        ("OUT E", None, "60.00"),
+        ("OUT F", None, "70.00"),
+    ]
+    if in_the_table:
+        table += [(f"CHECK {number}", None, amount) for number, amount in cheques]
+    withdrawals = "929.82"  # 180.00 of table rows plus the two cheques, counted once
+    header = line(60.0, (DESC_X, "ACME BANK"))
+    totals = [
+        line(72.0, (DESC_X, "Beginning balance"), (LEFT_X, "1,000.00")),
+        line(84.0, (DESC_X, "Total deposits"), (LEFT_X, "600.00")),
+        line(96.0, (DESC_X, "Total withdrawals"), (LEFT_X, withdrawals)),
+        line(108.0, (DESC_X, "Ending balance"), (LEFT_X, "670.18")),
+    ]
+    rows = [
+        two_column_row(140.0 + i * 12.0, f"01/0{i % 9 + 1}/2025", description,
+                       deposit=deposit, withdrawal=withdrawal)
+        for i, (description, deposit, withdrawal) in enumerate(table)
+    ]
+    listing = listing_lines(
+        140.0 + len(rows) * 12.0 + 12.0,
+        ((DATE_X, "01/02/2025"), (80.0, cheques[0][0]), (150.0, cheques[0][1]),
+         (230.0, "01/21/2025"), (280.0, cheques[1][0]), (350.0, cheques[1][1])),
+    )
+    return page(header, *totals, *rows, *listing)
+
+
+class TestAListingIsAddedOnlyWhenTheVerifierAgrees:
+    """SPEC §7.22 — the same listing is the only record of its cheques on one
+    statement and a duplicate view of the table on another, and nothing on
+    the page tells the two apart. The verifier does: the listing is added to
+    the rows when that reconciles the period, and left out when it does not."""
+
+    def test_cheques_printed_only_in_the_listing_are_added(self):
+        period, warnings, _ = extract_period([period_with_cheques(in_the_table=False)], None)
+        assert period.reconciliation.reconciled
+        assert len(period.transactions) == 8
+        assert any("listing" in w for w in warnings)
+
+    def test_a_listing_that_duplicates_the_table_is_left_out(self):
+        period, warnings, _ = extract_period([period_with_cheques(in_the_table=True)], None)
+        assert period.reconciliation.reconciled
+        assert len(period.transactions) == 8
+        assert any("listing" in w and "left out" in w for w in warnings)
+
+    def test_listing_rows_keep_document_order(self):
+        period, _, _ = extract_period([period_with_cheques(in_the_table=False)], None)
+        assert [t.line for t in period.transactions] == sorted(t.line for t in period.transactions)
