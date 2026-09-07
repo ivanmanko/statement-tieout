@@ -183,3 +183,29 @@ class TestDetailIsHumanReadable:
         result = diagnose(summary(), rows(("d", "100.00"), ("w", "50.00")))
         assert "200.00" in result.detail
         assert "deposit" in result.detail
+
+
+class TestSurplusRows:
+    """SPEC §5.1 signature 1 — the money is exact but there are MORE rows than printed.
+
+    Measured on the binder before the listing rule: a cheque listing read
+    into the table added a deposit and a withdrawal of equal value, so the
+    residual was 0.00 while both counts were over — and the diagnosis, with
+    nothing to say, reported that `0.00 appears on page 76`.
+    """
+
+    def test_extra_rows_that_cancel_are_named(self):
+        result = diagnose(
+            summary(dep="300.00", dep_n=2, wd="50.00", wd_n=1),
+            rows(("d", "100.00"), ("d", "200.00"), ("w", "50.00"), ("d", "25.00"), ("w", "25.00")),
+        )
+        assert result.kind == "surplus_rows"
+        assert "2 row(s) more than printed" in result.detail
+        assert result.confident is False
+
+    def test_no_diagnosis_ever_names_a_zero_amount(self):
+        result = diagnose(
+            summary(dep="300.00", dep_n=2, wd="50.00", wd_n=1),
+            rows(("d", "100.00"), ("d", "200.00"), ("w", "50.00"), ("d", "25.00"), ("w", "25.00")),
+        )
+        assert "0.00" not in result.detail
