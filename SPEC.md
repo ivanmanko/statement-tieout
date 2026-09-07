@@ -205,7 +205,10 @@ and one Decimal.
 Signatures are applied in this order; the first match wins:
 
 1. `r == 0` and counts are short — `zero_amount_rows`; rows with no amount
-   were skipped. Benign.
+   were skipped. Benign. `r == 0` and counts are **over** — `surplus_rows`;
+   rows were read that cancel each other, such as a listing (§7.22)
+   repeating the table on both sides. Reported as a candidate, since which
+   rows they are does not follow from the arithmetic.
 2. A running-balance column is present and its chain first breaks at row *i*
    (§7.10) — `row_level_break`, reported with *i* and its page. This
    outranks the count arithmetic because it localizes to a row rather than

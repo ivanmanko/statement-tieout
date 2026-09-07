@@ -351,7 +351,7 @@ _PAGE_IN_DETAIL = re.compile(r"page (\d+)")
 #: Diagnoses that name the tool as the cause (SPEC §5.1).
 _TOOL_DIAGNOSES = {
     "dropped_row", "duplicated_row", "side_flip", "zero_amount_rows",
-    "row_level_break", "amount_matches_row",
+    "surplus_rows", "row_level_break", "amount_matches_row",
 }
 
 

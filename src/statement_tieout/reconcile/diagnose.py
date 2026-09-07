@@ -67,6 +67,8 @@ def diagnose(
 
     if counts_known and residual == ZERO and (delta_dep < 0 or delta_wd < 0):
         return _zero_amount_rows(delta_dep, delta_wd)
+    if counts_known and residual == ZERO:
+        return _surplus_rows(delta_dep, delta_wd)
 
     if running_balances is not None and opening_balance is not None:
         broken = _first_chain_break(transactions, running_balances, opening_balance)
@@ -85,6 +87,18 @@ def _structural_detail(kind: str) -> str:
     if kind == "no_printed_summary":
         return "the statement printed no summary block, so nothing can evidence the rows"
     return "only counts were printed; no amount on the page was compared against the rows"
+
+
+def _surplus_rows(delta_dep: int, delta_wd: int) -> Diagnosis:
+    """Counts over, money exact: rows were read that cancel each other out."""
+    extra = max(delta_dep, 0) + max(delta_wd, 0)
+    return Diagnosis(
+        kind="surplus_rows",
+        detail=f"{extra} row(s) more than printed, but the money is exact — "
+        "rows were read that cancel each other, such as a listing repeating "
+        "the table on both sides",
+        confident=False,
+    )
 
 
 def _zero_amount_rows(delta_dep: int, delta_wd: int) -> Diagnosis:
