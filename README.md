@@ -15,7 +15,7 @@ what went wrong along the way is in [docs/ai/AI_NOTES.md](docs/ai/AI_NOTES.md).
 
 | | |
 |---|---|
-| Tests | 370 unit tests — no LLM, no network, no sample PDF required |
+| Tests | 477 unit tests — no LLM, no network, no sample PDF required |
 | Accuracy | measured by `evals/run_evals.py`, table below |
 | Cost | **$0.00 and zero API calls** on every sample, scans included |
 | Interface | one page — upload a statement, get the workpaper (below) |
@@ -63,9 +63,12 @@ kept **only if** the rows it produces reconcile. A model that makes things
 worse is discarded, so it can never turn an honest failure into a confident
 wrong result.
 
-**Every sample below is handled at rung 0**, so nothing above it fires on the
-two that reconcile, and every number in the accuracy table was produced
-without an API key at all. What rungs 2 and 4 do on the two that fail is
+**Every sample below reconciles at rung 0**, so nothing above it fires, and
+every number in the accuracy table was produced without an API key at all.
+Rung 0 is itself a small ladder now: it offers the profiles of the few
+densest pages in turn, and a listing set several to a line both with and
+without — the verifier, not a heuristic, picks the reading that closes. What
+rungs 2 and 4 did on the two files that used to fail is
 [measured below](#and-the-model-rungs-did-not-help).
 
 ## Scans are ingest, not a special case
@@ -215,8 +218,9 @@ Each side is compared with its own printed total, so the report can say which
 half of the page the difference is on. On the Renasant statement it reads:
 *the money in agrees with the printed total exactly; the whole difference of
 749.82 sits among the payments out.* That is half the page eliminated before
-anyone opens the file — and the 749.82 turns out to be two cheques the parser
-cannot read, printed two to a line.
+anyone opens the file — and the 749.82 turned out to be two cheques printed
+two to a line, which the parser now reads from that section's own header. The
+statement ties; the sentence above is what its report said the round before.
 
 **Verdicts** are `tied`, `tied_with_notes`, `exceptions_identified`,
 `not_tied` — each carrying next steps in the auditor's own terms: which page
@@ -233,15 +237,14 @@ rendering of it, for the scans — recorded in `evals/expected/`.
 |---|---|---|---|---|---|---|---|---|---|
 | Great Lakes x4071 2025-01 | text | 1 | 292 | **yes** | 4/6 | 0.00 | **11/11** | 0 | $0.00 |
 | April 2021 (Fulton Bank) | **OCR** | 1 | 284 | **yes** | 4/6 | 0.00 | **8/8** | 0 | $0.00 |
-| Binder2_Redacted (Ixonia Bank) | **OCR** | **10** | 1415 | no | 1/6 | −477,375.35 | **9/10** | 0 | $0.00 |
-| S2.6.1.1-2 Acct 6426 (Renasant) | **OCR** | 1 | 8 of 10 | no | 2/6 | 749.82 | 7/9 | 0 | $0.00 |
+| Binder2_Redacted (Ixonia Bank) | **OCR** | **10** | 1671 | **yes**, all ten | 6/6 | 0.00 | **10/10** | 0 | $0.00 |
+| S2.6.1.1-2 Acct 6426 (Renasant) | **OCR** | 1 | 10 | **yes** | 4/6 | 0.00 | **9/9** | 0 | $0.00 |
 
 Four banks, four unrelated layouts, one parser, no bank-specific code, and no
-API call on any of them.
-
-**Of the twenty summary fields for which ground truth exists, twenty match
-exactly** — on all four files. The only mismatches anywhere are two
-transaction counts and one bank name (`RENASANT` against `RENASANT BANK`).
+API call on any of them. **Every period of every sample reconciles to the
+cent, and every ground-truth field matches exactly** — thirty-eight of
+thirty-eight, including the binder's printed counts on its first statement
+and the transaction counts of both files that used to miss rows.
 
 **Great Lakes** — the tuning file (SPEC §12.1). Every ground-truth field
 exact. One signed amount column plus a running balance.
@@ -250,46 +253,48 @@ exact. One signed amount column plus a running balance.
 (labels in one row, amounts in the next), two amount columns of which the
 deposits column carries only 16% of the rows, and a logo set at 18.4 pt beside
 a 10.4 pt address on the same line. Every ground-truth field exact; reconciles
-to the cent.
+to the cent. Its 112-row cheque listing is read and **left out** by the
+verifier — it repeats the table — and the result says so.
 
 **Binder2_Redacted** — held out. 99 scanned pages holding **ten** Ixonia Bank
-statements with their descriptions redacted. All ten periods are detected. On
-the first — the statement the assignment prints as its own example output —
-nine of ten ground-truth fields are exact: bank, account, period and all six
-summary values *including the printed counts of 81 deposits and 111
-withdrawals*. The tenth is the transaction count, 189 against 192.
+statements with their descriptions redacted. All ten periods are detected and
+**all ten reconcile**, every printed count met: on the first — the statement
+the assignment prints as its own example output — 192 rows against 192
+printed, and so on down the binder. Forty-seven rows across the file took
+their date from the row before them because OCR mangled it (`Nov 01` as `No
+V 01`); each is marked, and their amounts and balances all sit on the running
+chain. Its cheque listings, several to a line on nine pages, are read and
+left out as duplicates of the table, which is what they are.
 
-**S2.6.1.1-2 Account 6426** — held out. Bank, account, period and all four
-printed totals correct and the printed block closes against itself. The
-residual of 749.82 is exactly its two cheques, which are printed two to a line
-in a section with its own column geometry — see [Cut scope](#cut-scope).
+**S2.6.1.1-2 Account 6426** — held out. Bank, account, period, all four
+printed totals and all ten rows, including the two cheques printed two to a
+line in a `NUMBER DATE AMOUNT` section — read from that section's own header
+and **added** by the verifier, because with them the period closes.
 
-### What is actually missing
+### What it took
 
-Every remaining gap is named rather than estimated.
+Every one of these was a *shape* of page, written into the generated corpus
+first and then measured on the sample (SPEC §12.1, amended). None is keyed
+on a bank. In the order they were found, with the rows each one returned on
+the binder:
 
-**Ixonia, period 1 — three rows of 192.** Two deposits worth 12,844.78 and one
-withdrawal worth 8,310.10. Six were missing a round ago: two were OCR
-splitting one printed number across boxes, and one had lost its amount
-entirely and is now recovered from the running-balance step.
-
-**Renasant — two rows of ten**, worth exactly the 749.82 residual. Both sit in
-a cheque section printed two to a line.
-
-**The balance-step recovery, honestly.** It recovered 89 rows across the
-binder and it is not free of cost: three periods improved enormously (one from
-−862,994.92 to −122,303.42), three drifted by 40 to 1,224 because a line that
-was not a transaction got one anyway. Net strongly positive, always counted in
-a warning, and visible in the result.
+| shape | rule | measured |
+|---|---|---|
+| a scanned sheet fed a dozen points to the side of the one before it | pages are put back on one margin at ingest (§7.2) | two whole statements went from 114 and 43 rows to 188 and 123 |
+| the densest page is a cheque listing, not the table | rung 0 offers the three densest pages' profiles; the verifier chooses, fewest inferred amounts before smallest residual (§7.21) | one statement's deposits column came back |
+| a listing set several to a line, the only record on one file and a duplicate on another | read from its own repeated header, kept apart, added only if the period then closes (§7.22) | Renasant closed; phantom rows left the binder |
+| a row whose date OCR mangled | inherits the previous row's when the chain holds, and says so (§7.23) | eight of ten periods closed |
+| a stray token in the margin tearing a row into two lines | a line is anchored on its words' mean height (§7.2) | the last two rows; ten of ten |
 
 ### Latency
 
 OCR is the entire cost and the pipeline around it is free: measured per page,
-**6 s of OCR against 0.004 s** of parsing, reconciling and diagnosis. So a
-6-page text-layer statement takes under a second and a 99-page scan takes
-about ten minutes. Fine for a batch tool, wrong for an interactive one.
-Parallelising the OCR was tried and is in [Cut scope](#cut-scope) — measured,
-it made things slower.
+**6 s of OCR against 0.004 s** of parsing, reconciling and diagnosis — and
+the extra readings the verifier now arbitrates between add nothing anyone
+can measure. So a 6-page text-layer statement takes under a second and a
+99-page scan takes about ten minutes. Fine for a batch tool, wrong for an
+interactive one. Parallelising the OCR was tried and is in
+[Cut scope](#cut-scope) — measured, it made things slower.
 
 ## Generalization
 
@@ -336,8 +341,14 @@ construction rather than read off a page by eye.
 | `gen_04` the same table as a clean 200 DPI scan | every number arrives through OCR | **11/11** |
 | `gen_05` 150 DPI, **1.4° off square**, soft focus, grain | a tilt drifts columns as well as lines | **11/11** |
 | `gen_06` `Money out` / `Money in`, `01 Apr 25`, sterling | nothing may assume a dollar or an American date | 9/9, does not reconcile |
+| `gen_07` three scanned pages fed **15 and 11 points sideways** of one another, serial numbers in the margin | a profile from one page must read the others; a stray token must not tear a row | **11/11** |
+| `gen_08` a cheque listing two to a line, the **only** record of its cheques | the listing must be read and added | **11/11** |
+| `gen_09` the same listing, every cheque **also** a row of the table | the listing must be read and left out | **11/11** |
 
-Five reconcile to the cent for $0.00 and no API call. `gen_06` reads every
+Eight reconcile to the cent for $0.00 and no API call. `gen_07`–`gen_09` are
+the shapes the binder and the Renasant statement taught (SPEC §12.1, amended):
+each was written here first, and the sample then measured the rule rather
+than tuning it. `gen_06` reads every
 field on the page correctly — bank, account, period and all four printed
 totals — and still does not reconcile, which is the outcome the design is for:
 the rows disagree with the block and the report says so instead of averaging
@@ -353,11 +364,21 @@ them. The cause is named under [Known weaknesses](#known-weaknesses).
   table's own column headings against the side vocabulary and let them say
   which column is which, falling back to the order only where the headings say
   nothing.
-- **A section with its own column geometry is not read.** Renasant's cheque
-  section puts dates at x 153–188 and amounts at 261–303, where the rest of
-  that statement uses 49–88 and 512–584. See [Cut scope](#cut-scope).
-- **The balance-step recovery occasionally recovers a line that was not a
-  transaction** (above). Bounded, counted, reported.
+- **A listing is read only under a header that names its slots.** A cheque
+  section headed `NUMBER DATE AMOUNT NUMBER DATE AMOUNT` is read slot by slot
+  (SPEC §7.22); a section that prints several transactions to a line with no
+  such header is still read one to a line. And a listing ends with its page.
+- **Whether a listing belongs in the table is decided by the verifier**, so a
+  listing that repeats *some* rows of the table and adds others would be
+  neither added nor left out correctly. No sample or fixture prints one; the
+  result would say so in its residual.
+- **A row whose date was not read takes the previous row's** (SPEC §7.23).
+  The chain vouches for the amount and the side; the date is the tool's, and
+  is marked `date_inherited` and listed in the audit view.
+- **The balance-step recovery can still take a line that is not a transaction
+  for one.** The lines it used to misread were a cheque listing's, and the
+  listing rule now reads those first; no sample fires it any more. It stays
+  declared, counted in a warning and marked `recovered` on the row.
 - **Descriptions from a scan are less faithful.** OCR returns line segments
   and drops spaces, so an all-capitals description stays one token
   (`REMOTEDEPOSITLINK`). Amounts, dates and balances are unaffected, which is
@@ -365,8 +386,9 @@ them. The cause is named under [Known weaknesses](#known-weaknesses).
 - **A column seen only once is not claimed.** Alignment identifies a money
   column from two occurrences; one is indistinguishable from an amount inside
   a sentence.
-- **The bank name is the largest type on the page**, which on a scan whose
-  logo OCRs onto two lines returns `RENASANT` rather than `RENASANT BANK`.
+- **The bank name is the largest type on the page**, plus the adjoining
+  lines set in the same size — a logo wrapped onto two lines. A title set
+  as large as the logo directly beneath it would be joined to it.
 - **OCR is the whole latency budget** — about 6 s a page, so roughly ten
   minutes for the 99-page binder.
 
@@ -374,15 +396,14 @@ them. The cause is named under [Known weaknesses](#known-weaknesses).
 
 Deliberate, and recorded here rather than silently implemented.
 
-**Multi-up sections — cut on evidence, not on effort.** Both scanned binders
-print a table with several transactions to a line, and parsing them would help
-one file and break the other. Renasant's cheque section is the *only* record
-of its two cheques, so reading it would close that statement. Ixonia's cheque
-listing is a *duplicate* view: all twenty of its amounts already appear in the
-main transaction table, checked one by one, so reading it would double-count
-about 40,000 of withdrawals. A rule that fixes one held-out file by breaking
-another is not a fix — and nothing on the page tells the two cases apart, only
-the reconciliation afterwards.
+**~~Multi-up sections~~** — cut for a round on exactly the right evidence:
+Renasant's cheque section is the *only* record of its two cheques, Ixonia's
+cheque listing is a *duplicate* view of twenty rows the table already holds,
+and nothing on the page tells the two apart. **Built on 2026-09-07** without
+deciding on the page at all: the listing is read from its own repeated header,
+kept apart from the table, and the period is verified with it and without it
+(SPEC §7.22). The reconciliation afterwards was always the only thing that
+could tell them apart, so it is what does.
 
 **Parallel OCR — cut on measurement.** Implemented across four processes and
 measured on the same file: **137 s against 100 s**. The OCR runtime is already
@@ -390,8 +411,8 @@ multi-threaded and saturates the cores, so four copies contend rather than
 divide the work. Reverted.
 
 **Rungs 1 and 3** — the profile cache, and model transcription of pages OCR
-reads poorly. Rungs 2 and 4 are built and measured below; neither helps the
-two files that fail, because neither failure is a misunderstanding of layout.
+reads poorly. Rungs 2 and 4 are built and measured below; no sample reaches
+them any more.
 
 **~~HTTP API and UI~~** — cut early, **brought back on 2026-09-03**. The
 assignment marks them "really optional", which was the right read of the
@@ -450,8 +471,10 @@ nothing notices until the totals disagree.
 
 ### And the model rungs did not help
 
-Both are built, bounded and measured. Neither fixes the two statements that
-fail, and that is the finding rather than a disappointment.
+Both are built, bounded and measured — on the two statements that failed
+before the listing, registration and inherited-date rules closed them. Neither
+fixed either, and that was the finding rather than a disappointment: what
+those files needed was a row model, not a model.
 
 **Rung 2** returned a valid layout profile in 2 calls for **$0.004**, the rows
 it produced did not reconcile, and the escalation discarded it.
@@ -463,11 +486,12 @@ evidence and declined to guess, which is what its prompt tells it to do when
 it cannot find the answer, and it is the outcome I would rather have than four
 invented rows.
 
-Neither failure is a misunderstanding of the layout, and neither is a single
-lost row an agent can locate: Renasant needs a row model that reads two
-transactions from one line. **The prompt was deliberately not tuned until the
-file passed** — it is a held-out sample (SPEC §12.1), and tuning against it
-would make its result meaningless as a measurement.
+Neither failure was a misunderstanding of the layout, and neither was a single
+lost row an agent could locate: Renasant needed a row model that reads two
+transactions from one line, and now has one. **The prompt was deliberately
+not tuned until the file passed** — tuning against a sample would have made
+its result meaningless as a measurement, and in the end no prompt was tuned
+at all.
 
 What this does establish is the shape: the model is reached only after a free
 check has refused the free answer, it is bounded before each turn rather than

@@ -360,3 +360,72 @@ first refusal worth anything.
 Two real defects surfaced while scoping it and were fixed on their own merits:
 a wrapped description read as a section heading, and a full-width `****CHECKS****`
 banner discarded because it collided with the money columns.
+
+## Closing the four samples, and what each one turned out to need
+
+The brief changed on 2026-09-07: the four samples are the files the work is
+graded on, so "an explained failure" stopped being the finish line (SPEC
+§12.1, amended). The discipline that stayed: no threshold was moved, and
+every new rule is a *shape* of page that was first written into the
+generated corpus and only then measured on a sample.
+
+Before touching code, the binder was measured period by period with its
+OCR output cached to disk — ten minutes once, then seconds per experiment.
+That map is what the rest of this section follows; without it the plan
+would have been "OCR loses rows", which is true and useless.
+
+**A scanned sheet lands a few points to the side of the one before it.** The
+profile is derived from one page of a period and its date column was 42–79
+points wide; on page 60 the `09` of `Sep 09` sat at 77–89 and the whole page
+yielded zero rows. Five pages across two statements, about 160 rows. The
+fix is the same idea as the deskew: measure each page's row margin, put the
+pages back on one margin at ingest, and let nothing downstream know.
+September went from 114 rows to 188, December from 43 to 123, in one commit.
+
+**The densest page is not always the table.** In May the page with the most
+date-and-money lines was a cheque listing set three to a line, and the
+profile it gave put the deposits column where the cheque amounts sit — 84
+rows lost their amount and took a wrong one from the balance step. Rung 0
+now offers the profiles of the three densest pages and the verifier picks.
+And the first ranking I wrote was wrong: by residual alone the *wrong*
+profile won (−118,768 against −152,322), because the balance step had
+patched over its damage. Fewer inferred amounts now outrank a smaller
+residual, which is the audit view's own rule about doubt written into the
+ladder.
+
+**The same listing is the sole record on one statement and a duplicate on
+another.** README had cut this on exactly that evidence. What made it
+buildable was refusing to decide on the page at all: the listing is read
+slot by slot from its own repeated header, kept apart from the table, and
+the period is verified with it and without it. Renasant closes with its two
+cheques added; Ixonia's period 7 closes with its twenty left out; both say
+so in a warning. One glyph rule came with it — `1-2` + `i` is `01-21` only
+once the boxes are joined, because the ingest repair sees no digit in `i`.
+
+**A row whose date OCR mangled still moves the balance.** `Nov 01` arrived
+as `No V 01`, `May 01` as `May O1`. With the amount printed in its column
+and the balance closing on the row before, only the date is missing, and a
+statement lists in date order. The row takes the previous row's date, says
+so (`date_inherited`), and the audit view lists it as the tool's doubt.
+That closed November's chain break at row 0 and, with the three rules
+above, took the binder from one reconciled period to eight.
+
+**The last two rows were torn by a stray token.** A cheque image's serial
+number sits in the margin three points above its row; lines were anchored
+on their first word, so `May` and the balance went one way and `15
+CHECK#40840 331.80` the other, and neither half was a row. Anchoring a line
+on the mean height of its words fixed both remaining rows. Ten of ten.
+
+**The corpus caught two more before the samples could.** Writing the
+offset-page and listing fixtures found that a listing's right-hand amounts,
+aligned under its own `Amount`, read as the table's rightmost money column
+and displaced the real deposits column; that `Beginningbalance` with its
+space lost no longer matched the strongest period anchor, so the weaker
+account-number anchor cut a statement in two; and that the year in
+`05/14/2025` read as an account tail. None of the four samples exercises
+those, which is the argument for generating the corpus rather than
+collecting it.
+
+What was *not* done: the British column order (`gen_06`) still fails, and
+deliberately — the brief is US statements — and no prompt was tuned, since
+no model rung fired on any sample.
