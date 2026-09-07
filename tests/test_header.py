@@ -445,3 +445,17 @@ class TestASideTotalIsAMagnitude:
         ])
         assert reading.deposits_total == Decimal("110850.55")
         assert reading.withdrawals_total == Decimal("86438.17")
+
+
+class TestTheYearOfADateIsNotAnAccount:
+    """SPEC §7.19 — a four-digit group inside a date is a year, not a tail."""
+
+    def test_a_date_on_an_account_line_gives_no_last4(self):
+        from statement_tieout.parse.header import read_last4
+
+        assert read_last4(["MONTHLY ACCOUNT MAINTENANCE 05/14/2025 1,434.04"]) is None
+
+    def test_a_bare_four_digit_group_on_an_account_line_still_does(self):
+        from statement_tieout.parse.header import read_last4
+
+        assert read_last4(["Account 4664 Business Checking"]) == "4664"

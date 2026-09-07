@@ -177,3 +177,27 @@ class TestAnchorNeedsAnAmount:
             statement_page(3, "Beginning Balance as of 12/01/2024 $509,121.59"),
         ]
         assert len(segment(pages)) == 2
+
+
+class TestALabelsSpacesAreOptional:
+    """SPEC §7.5 — OCR drops the space inside a label as readily as after it.
+
+    Measured on a generated scan: `Beginning balance $402,118.40` arrived as
+    `Beginningbalance`, no page carried the strongest anchor any more, and the
+    weaker account-number anchor split one statement into two periods.
+    """
+
+    def test_a_label_with_its_space_lost_still_matches(self):
+        from statement_tieout.parse.labels import BEGINNING_LABELS, matches_label
+
+        assert matches_label("Beginningbalance $402,118.40", BEGINNING_LABELS)
+
+    def test_and_with_its_space_kept(self):
+        from statement_tieout.parse.labels import BEGINNING_LABELS, matches_label
+
+        assert matches_label("Beginning balance $402,118.40", BEGINNING_LABELS)
+
+    def test_a_label_glued_inside_a_word_is_still_not_a_match(self):
+        from statement_tieout.parse.labels import DEPOSIT_LABELS, matches_label
+
+        assert not matches_label("TRANSFER FROMDEPOSITSYSTEM", DEPOSIT_LABELS)

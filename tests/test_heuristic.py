@@ -395,3 +395,39 @@ class TestSeveralCandidateProfiles:
         pages = [self.listing_page(number=n) for n in range(1, PROFILE_CANDIDATE_PAGES + 4)]
         pages.append(self.table_page(number=99))  # the sparsest page of all: never reached
         assert derive_profile([self.table_page()]) not in derive_profiles(pages)
+
+
+class TestListingLinesDoNotProfileTheTable:
+    """SPEC §7.21 — the lines under a listing header are not candidate rows.
+
+    Measured on a generated statement: a cheque listing two to a line has
+    its right-hand amounts aligned under `Amount`, which made them a money
+    column — the rightmost one — and the table's own deposits column was
+    dropped for it.
+    """
+
+    def page_with_listing(self):
+        table = [
+            two_column_row(100.0 + i * 12.0, f"07/0{i + 1}/2025", "PAYMENT",
+                           deposit=deposit, withdrawal=withdrawal)
+            for i, (deposit, withdrawal) in enumerate([
+                ("2,009.02", None), (None, "4,516.91"), ("3,431.78", None),
+                (None, "311.35"), ("1,644.81", None), (None, "2,517.68"),
+            ])
+        ]
+        listing = [
+            line(190.0, (DESC_X, "CHECKS PAID")),
+            line(202.0, (DATE_X, "Date"), (80.0, "Check No."), (200.0, "Amount"),
+                 (280.0, "Date"), (330.0, "Check No."), (500.0, "Amount")),
+            line(214.0, (DATE_X, "07/17/2025"), (80.0, "40780"), (200.0, "124.95"),
+                 (280.0, "07/31/2025"), (330.0, "40781"), (500.0, "543.26")),
+            line(226.0, (DATE_X, "07/14/2025"), (80.0, "40782"), (200.0, "92.76"),
+                 (280.0, "07/05/2025"), (330.0, "40783"), (500.0, "832.63")),
+            line(238.0, (DATE_X, "07/23/2025"), (80.0, "40784"), (200.0, "795.91")),
+        ]
+        return page(*table, *listing)
+
+    def test_the_tables_columns_are_the_profile(self):
+        profile = derive_profile([self.page_with_listing()])
+        assert profile.side_strategy is SideStrategy.TWO_COLUMNS
+        assert [round(c.x1) for c in profile.amount_columns] == [382, 472]
