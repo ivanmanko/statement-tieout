@@ -121,11 +121,20 @@ class Page:
     """Which ingest backend produced this page: `text`, `ocr` or `empty`."""
 
     def lines(self, tolerance: float = LINE_TOLERANCE) -> list[list[Word]]:
-        """Words grouped into visual lines, each ordered left to right."""
+        """Words grouped into visual lines, each ordered left to right.
+
+        A word joins the line whose words' **mean** height it is within the
+        tolerance of (SPEC §7.2). Anchoring on the first word instead tears a
+        row apart whenever a stray token — a cheque image's serial number in
+        the margin, three points above the row — happens to come first.
+        """
         grouped: list[list[Word]] = []
+        heights: list[float] = []  # running sum of tops, one per line
         for word in sorted(self.words, key=lambda w: (w.top, w.x0)):
-            if grouped and word.top - grouped[-1][0].top <= tolerance:
+            if grouped and word.top - heights[-1] / len(grouped[-1]) <= tolerance:
                 grouped[-1].append(word)
+                heights[-1] += word.top
             else:
                 grouped.append([word])
+                heights.append(word.top)
         return [sorted(line, key=lambda w: w.x0) for line in grouped]

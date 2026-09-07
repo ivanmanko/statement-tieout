@@ -282,7 +282,13 @@ Everything a developer would otherwise decide silently in code.
    Every rule downstream — column alignment, the row parser, the summary
    block — is stated in terms of lines, and a sheet fed a degree off square
    puts the last column of a row a whole line below its first: at 1.2°, the
-   drift across a page is 12 points against a `line_tolerance` of 3. The
+   drift across a page is 12 points against a `line_tolerance` of 3. (A word
+   joins the line whose words' **mean** height it is within that tolerance
+   of. Anchored on the line's first word instead, a cheque image's serial
+   number sitting in the margin three points above its row tore the row in
+   two — `May` and the balance on one line, `15 CHECK#40840 331.80` on the
+   next — and neither half was a transaction. Measured: the last two rows
+   the binder was missing.) The
    slope is estimated once per scanned page by projection profile — deskewed
    word tops are binned at `skew_bin = 1.0` points and the angle maximizing
    the sum of the squared bin counts wins — swept coarsely across
