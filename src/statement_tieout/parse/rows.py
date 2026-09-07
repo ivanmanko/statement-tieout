@@ -90,8 +90,13 @@ class _State:
     summary_rows: int = 0
     recovered_rows: int = 0
     unsided_listing_rows: int = 0
+    inherited_dates: int = 0
+    undated_rows: int = 0
     page: int | None = None
     line_index: int | None = None
+
+    #: The date of the last table row read, which dates a row that lost its own.
+    last_date: date | None = None
 
     #: The listing being read, if any, and the side its heading gave it.
     listing: Listing | None = None
@@ -120,6 +125,10 @@ class _State:
                 self.summary_rows += 1
                 return
             self._emit(when, line, amounts, parsed)
+            return
+
+        if when is None and self._continues_the_chain(amounts):
+            self._emit_with_inherited_date(line, amounts, parsed)
             return
 
         if when is not None and self._recoverable(amounts):
@@ -176,6 +185,41 @@ class _State:
                     line=self.line_index,
                 )
             )
+
+    # ------------------------------------------------------------ inherited date
+
+    def _continues_the_chain(self, amounts: list[_Money]) -> bool:
+        """SPEC §7.23: an amount in a declared column, and a balance that continues the chain.
+
+        The date is the only thing missing from such a row, and the chain is
+        what says the amount and its side are the page's rather than a guess:
+        a total line or a header carries no balance that closes on the row
+        before it.
+        """
+        if self.profile.balance_column is None or self.previous_balance is None:
+            return False
+        amount = next((m for m in amounts if m.column is not None), None)
+        balance = next((m.value for m in amounts if m.is_balance), None)
+        if amount is None or balance is None or amount.value == ZERO:
+            return False
+        side = self._side_of(amount, balance)
+        if side is None:
+            return False
+        signed = abs(amount.value) if side == DEPOSIT else -abs(amount.value)
+        return self.previous_balance + signed == balance
+
+    def _emit_with_inherited_date(
+        self, line: list[Word], amounts: list[_Money], parsed: ParsedRows
+    ) -> None:
+        """A statement lists in date order, so the row before this one dates it."""
+        when = self.last_date or (self.period.start if self.period else None)
+        if when is None:
+            self.undated_rows += 1
+            return
+        before = len(parsed.transactions)
+        self._emit(when, line, amounts, parsed, date_inherited=True)
+        if len(parsed.transactions) > before:
+            self.inherited_dates += 1
 
     # ------------------------------------------------------------ balance step
 
@@ -263,7 +307,13 @@ class _State:
         return False
 
     def _emit(
-        self, when: date, line: list[Word], amounts: list[_Money], parsed: ParsedRows
+        self,
+        when: date,
+        line: list[Word],
+        amounts: list[_Money],
+        parsed: ParsedRows,
+        *,
+        date_inherited: bool = False,
     ) -> None:
         amount = next(m for m in amounts if m.column is not None)
         balance = next((m.value for m in amounts if m.is_balance), None)
@@ -288,6 +338,7 @@ class _State:
                 withdrawal=abs(amount.value) if side == WITHDRAWAL else None,
                 page=self.page,
                 line=self.line_index,
+                date_inherited=date_inherited,
             )
         except ValidationError:
             # SPEC §7.15: one malformed row must not cost the whole document.
@@ -295,6 +346,7 @@ class _State:
             return
 
         parsed.transactions.append(transaction)
+        self.last_date = when
         if balance is not None:
             parsed.balances.append(balance)
             self.previous_balance = balance
@@ -466,6 +518,16 @@ class _State:
             parsed.warnings.append(
                 f"{self.unsided_listing_rows} row(s) of a listing set several to a line had "
                 "no heading to say their side and were left out"
+            )
+        if self.inherited_dates:
+            parsed.warnings.append(
+                f"{self.inherited_dates} row(s) had no readable date and took the previous "
+                "row's; their amount and balance continue the running-balance chain"
+            )
+        if self.undated_rows:
+            parsed.warnings.append(
+                f"{self.undated_rows} row(s) had no readable date and no earlier row or "
+                "statement period to take one from, and were left out"
             )
 
 

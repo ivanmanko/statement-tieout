@@ -320,6 +320,19 @@ def _doubt_items(period: PeriodResult, warnings: list[str]) -> list[AuditExcepti
             page=transaction.page,
         ))
 
+    for transaction in (t for t in period.transactions if t.date_inherited):
+        items.append(AuditException(
+            kind=Attribution.EXTRACTION_UNCERTAINTY,
+            description=(
+                f"Date not read, taken from the row before: "
+                f"{format_money(transaction.deposit or transaction.withdrawal)} dated "
+                f"{transaction.date.isoformat()}"
+            ),
+            action="Confirm the date of this row on the page.",
+            amount=transaction.deposit or transaction.withdrawal,
+            page=transaction.page,
+        ))
+
     for warning in warnings:
         for marker, action in _DOUBT_PATTERNS:
             if marker in warning:

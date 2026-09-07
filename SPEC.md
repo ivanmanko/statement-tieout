@@ -770,6 +770,28 @@ Everything a developer would otherwise decide silently in code.
     page, and the audit view (§8) lists it as extraction uncertainty. With
     the listing merged, the running-balance chain (§7.11) is no longer
     aligned with the rows and stands down for that period.
+23. **A row whose date was not read takes the previous row's.** OCR mangles
+    a date as readily as an amount — measured on the binder, `Nov 01` arrived
+    as `No V 01` and `May 01` as `May O1`, neither of which any format parses
+    — and a row with no date was not a row at all, so the first transaction
+    of a statement was dropped and its chain broke at row 0.
+
+    Such a line is a transaction when **everything but the date is
+    evidenced**: it carries an amount in a declared amount column, a balance
+    in the balance column, and `previous_balance ± amount == balance` with
+    the side the page gives it (§7.6) — a total line or a header carries no
+    balance that closes on the row before it, which is what keeps this from
+    reading a summary as a row. Its date is the previous table row's, because
+    a statement lists in date order; the first row of a period takes the
+    period's start. With neither to take, the row is left out and counted in
+    a warning. A zero amount is not a transaction here either (§7.13), and a
+    row with no amount is the balance-step case of §7.10 — the two doubts are
+    never combined on one row, since that row would be one nothing on the
+    page evidences.
+
+    The row records `date_inherited`, the counterpart of `recovered`, and the
+    audit view (§8) lists it as extraction uncertainty: the amount is the
+    page's, the date is the tool's.
 
 ## 8. The audit view (normative)
 

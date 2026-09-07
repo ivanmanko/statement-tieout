@@ -485,12 +485,17 @@ td.off{color:var(--debit);font-weight:500}
     table.appendChild(head);
     var body = el("tbody");
     source.transactions.forEach(function (item) {
-      var line = el("tr", item.recovered ? "recovered" : null);
+      var doubtful = item.recovered || item.date_inherited;
+      var line = el("tr", doubtful ? "recovered" : null);
       line.appendChild(el("td", "n", item.date));
       var what = el("td", null, item.description);
       if (item.recovered) {
         what.appendChild(document.createTextNode(" "));
         what.appendChild(el("span", "pill p-na", "amount inferred"));
+      }
+      if (item.date_inherited) {
+        what.appendChild(document.createTextNode(" "));
+        what.appendChild(el("span", "pill p-na", "date inherited"));
       }
       line.appendChild(what);
       line.appendChild(el("td", "n", item.deposit === null ? "" : money(item.deposit)));

@@ -85,6 +85,10 @@ class Transaction(BaseModel):
     #: an audit finding.
     recovered: bool = False
 
+    #: True when the date was not read off the row but taken from the row
+    #: before it (SPEC §7.23) — the same kind of doubt as `recovered`.
+    date_inherited: bool = False
+
     @model_validator(mode="after")
     def _exactly_one_positive_side(self) -> Transaction:
         """SPEC §3 invariant 1: sign lives in the field choice, never in the value."""
