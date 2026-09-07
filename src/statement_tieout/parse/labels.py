@@ -33,8 +33,16 @@ def matches_label(text: str, labels: "tuple[str, ...]") -> bool:
     as not — the same statement prints `Beginning Balance asof` on one page
     and `Beginning Balanceasof` on the next — so requiring a trailing boundary
     would reject half the real headings.
+
+    The spaces *inside* a label are optional for the same reason: a scan
+    prints `Beginningbalance` as readily as `Beginning balance`, and a
+    statement whose strongest period anchor goes unmatched for a lost space is
+    cut into periods by the weaker ones.
     """
     import re
 
     lowered = text.casefold()
-    return any(re.search(rf"(?<![a-z]){re.escape(label)}", lowered) for label in labels)
+    return any(
+        re.search(rf"(?<![a-z]){re.escape(label).replace(chr(92) + ' ', r'\s*')}", lowered)
+        for label in labels
+    )

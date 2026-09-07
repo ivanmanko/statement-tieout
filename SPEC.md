@@ -421,7 +421,11 @@ Everything a developer would otherwise decide silently in code.
    `subtractions`. Longer labels are tried first, so `deposits and credits`
    is not consumed by `deposits`. The vocabulary lives in one module
    constant and this section mirrors it; extending it requires editing both
-   in one commit.
+   in one commit. The spaces **inside** a label are optional wherever it is
+   matched: a scan prints `Beginningbalance` as readily as `Beginning
+   balance`, and measured on a generated scan, the strongest period anchor
+   (§7.3) went unmatched for that lost space and the weaker account-number
+   anchor cut one statement into two periods.
 
    A label must **start** at a word boundary, or the wrapped description
    `TRANSFER FROMDEPOSITSYSTEM` reads as a deposits heading. Only the leading
@@ -639,7 +643,11 @@ Everything a developer would otherwise decide silently in code.
       (`****4071`, `xxxx4071`, `Xxx X 1858`) anywhere on the page, or
       failing that, on a line containing `account`, the last four digits of
       its longest run of digits — `ACCOUNT NUMBER 0011016426` gives `6426`,
-      which is what "last four" means. A mask is **two or more** mask characters, or a single one
+      which is what "last four" means. A four-digit group that is the year
+      of a date — after a `/`, `-` or `.`, or before one — is never a tail:
+      a description reading `MONTHLY ACCOUNT MAINTENANCE 05/14/2025` would
+      otherwise give `2025`, and as a period anchor (§7.3) it did, cutting a
+      generated statement in two. A mask is **two or more** mask characters, or a single one
       touching the digits (`x4071`); it may never follow a letter. Both
       guards are needed and both come from real pages: `P.O.Box 4887` has a
       mask character because `Box` ends in `x`, and OCR of the same line on
@@ -694,7 +702,12 @@ Everything a developer would otherwise decide silently in code.
     does not.
     1. **Candidate rows** are lines whose leading words parse as a date under
        any candidate format (§7.19, plus the yearless formats of §7.12) and
-       that carry at least one money token. Fewer than
+       that carry at least one money token. The lines under a listing header
+       (§7.22) are not candidates, up to the next heading — a line with
+       letters, no date and no money — or the end of the page: their amounts
+       are aligned under the listing's own `Amount`, and measured on a
+       generated statement they read as the rightmost money column and
+       displaced the table's deposits column. Fewer than
        `min_candidate_rows = 3` of them means no profile: rung 0 declines
        rather than guessing, and the ladder escalates.
     2. **Date format and column:** the candidate format parsing the most

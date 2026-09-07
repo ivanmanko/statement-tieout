@@ -65,7 +65,9 @@ _MASKED_ACCOUNT = re.compile(
     r"(?<![A-Za-z0-9])(?:[*xX×]\s*){2,}(\d{4})(?!\d)"
     r"|(?<![A-Za-z0-9])[*xX×](\d{4})(?!\d)"
 )
-_FOUR_DIGITS = re.compile(r"\b(\d{4})\b")
+#: A bare four-digit group — not the year of a date, which sits after a `/`,
+#: `-` or `.` (or before one, written year first). SPEC §7.19.
+_FOUR_DIGITS = re.compile(r"(?<![/\-.])\b(\d{4})\b(?![/\-.]\d)")
 _BARE_INTEGER = re.compile(r"\b\d{1,3}\b")
 _LONG_DIGITS = re.compile(r"\d{4,}")
 _DIGIT_RUN = re.compile(r"\d{5,}")

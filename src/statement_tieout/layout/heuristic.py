@@ -15,6 +15,7 @@ from statistics import pstdev
 
 from ..money import parse_money
 from ..parse.labels import DEPOSIT_LABELS, WITHDRAWAL_LABELS, matches_label
+from ..parse.listing import read_header
 from ..pdf.model import Page, Word
 from .dates import DATE_FORMATS, MAX_DATE_WORDS, YEARLESS_FORMATS, parse_date
 from .profile import Column, LayoutProfile, SideStrategy
@@ -104,18 +105,31 @@ def _densest_table_page(pages: list[Page]) -> list[Page]:
 
 
 def _scan(pages: list[Page]) -> tuple[list[_Row], list[list[Word]]]:
-    """Split every line into a candidate transaction row, a heading, or noise."""
+    """Split every line into a candidate transaction row, a heading, or noise.
+
+    The lines under a listing header (SPEC §7.22) are none of these: their
+    amounts are aligned under the listing's own `Amount`, which reads as a
+    money column of the table and displaces a real one. They are skipped
+    until a heading — a line with letters, no date and no money — or the end
+    of the page.
+    """
     rows: list[_Row] = []
     headings: list[list[Word]] = []
     for page in pages:
+        in_listing = False
         for line in page.lines():
             money = [(word, value) for word in line if (value := _as_money(word.text))]
             leading = _leading_date(line)
-            if leading is not None and money:
+            if leading is None and not money:
+                lettered = any(any(c.isalpha() for c in word.text) for word in line)
+                in_listing = read_header(line) is not None or (in_listing and not lettered)
+                if not in_listing:
+                    headings.append(line)
+            elif in_listing:
+                continue
+            elif leading is not None and money:
                 date_words, date_format = leading
                 rows.append(_Row(date_words=date_words, date_format=date_format, money=money))
-            elif leading is None and not money:
-                headings.append(line)
     return rows, headings
 
 
