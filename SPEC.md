@@ -310,6 +310,26 @@ Everything a developer would otherwise decide silently in code.
    four points the other way, and every row of the statement broke into three
    lines.
 
+   **A scanned sheet may also land a few points to the side of the sheet
+   before it, and the pages are put back on one margin.** A layout profile is
+   derived from one page of a period (§7.21) and applied to the rest, so a
+   page offset sideways by a dozen points has its dates fall outside the date
+   column and reads as no rows at all. Measured on a 99-page binder: pages
+   whose rows began 12–15 points to the right of the profile page's yielded
+   zero transactions each, five whole pages across two statements, with the
+   profile otherwise correct.
+
+   Each scanned page's **row margin** is the median left edge of its lines
+   that open with a date and carry money, on a page with at least
+   `min_rows_for_registration = 3` of them. The reference is the median row
+   margin over the scanned pages that have one, and every such page is
+   shifted sideways by the difference, provided it is at most
+   `max_registration = 30` points — past that the page is laid out
+   differently, not fed crooked, and is left alone. Vertical positions and
+   text are untouched. A text-layer page reports exact coordinates and is
+   never moved, whatever the scans around it do. Applied once, at ingest,
+   after every page has been read, so nothing downstream has to know.
+
    **One OCR repair is applied, and only one.** A token shaped
    `\d{1,3}([/|.]\d{3})+\.\d{2}` — `32/537.69`, `1.782.02`, `63.779.55` —
    has its separators rewritten to commas. Nothing else in a statement takes that shape: a date

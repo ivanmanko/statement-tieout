@@ -10,14 +10,13 @@ ingest, like the tilt — so nothing downstream has to know.
 
 from dataclasses import replace
 
+from statement_tieout.pdf.model import Page, Word
 from statement_tieout.pdf.register import (
     MAX_REGISTRATION,
     MIN_ROWS_FOR_REGISTRATION,
     register,
     row_margin,
 )
-
-from statement_tieout.pdf.model import Page, Word
 
 from .helpers import BALANCE_X, DATE_X, DESC_X, LEFT_X, line
 

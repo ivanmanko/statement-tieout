@@ -14,6 +14,7 @@ from pathlib import Path
 import pdfplumber
 
 from .model import Page, Word, deskew
+from .register import register
 
 MIN_CHARS_PER_TEXT_PAGE = 20
 """Below this a page carries no usable text layer and is a scan (SPEC §7.2)."""
@@ -40,7 +41,9 @@ def load_pages(source: str | Path | bytes, *, ocr: bool = True) -> list[Page]:
 
     scanned = [page.number for page in pages if page.source == "empty"]
     if scanned and ocr:
-        pages = _with_ocr(source, pages, scanned)
+        # SPEC §7.2: the tilt of each sheet is taken out as it is read; the
+        # sideways offset between sheets needs them all, so it comes last.
+        pages = register(_with_ocr(source, pages, scanned))
     return pages
 
 
