@@ -459,3 +459,43 @@ class TestTheYearOfADateIsNotAnAccount:
         from statement_tieout.parse.header import read_last4
 
         assert read_last4(["Account 4664 Business Checking"]) == "4664"
+
+
+class TestALogoWrappedOntoTwoLines:
+    """SPEC §7.19 — a logo set on two lines is one letterhead.
+
+    Measured on the Renasant statement: `RENASANT` at 17.2 pt with `BANK` at
+    15.2 pt on the line below, and the bank came back as `RENASANT`.
+    """
+
+    def test_the_adjoining_line_in_the_same_size_is_joined(self):
+        rows = [
+            big(31.0, 61.0, "RENASANT", height=17.2),
+            big(51.0, 139.0, "BANK", height=15.2),
+            line(62.0, (36.0, "P.O.Box 4140")),
+            line(72.0, (36.0, "Tupelo, MS 38803-4140")),
+        ]
+        assert read_header(rows).account.bank == "RENASANT BANK"
+
+    def test_an_adjoining_line_of_smaller_type_is_not(self):
+        rows = [
+            big(84.0, 50.0, "Fulton Bank", height=18.4),
+            line(96.0, (200.0, "Lancaster, PA 17604")),
+        ]
+        assert read_header(rows).account.bank == "Fulton Bank"
+
+    def test_an_adjoining_line_only_partly_in_that_size_is_not(self):
+        rows = [
+            big(31.0, 61.0, "RENASANT", height=17.2),
+            mixed(51.0, [(61.0, "STATEMENT", 16.0), (140.0, "of", 9.0), (160.0, "account", 9.0)]),
+        ]
+        assert read_header(rows).account.bank == "RENASANT"
+
+    def test_the_line_before_the_logo_is_joined_too(self):
+        rows = [
+            line(20.0, (300.0, "532 85")),
+            big(31.0, 61.0, "FIRST", height=17.2),
+            big(51.0, 61.0, "NATIONAL", height=17.0),
+            line(62.0, (36.0, "P.O.Box 4140")),
+        ]
+        assert read_header(rows).account.bank == "FIRST NATIONAL"
