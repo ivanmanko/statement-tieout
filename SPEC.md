@@ -785,6 +785,25 @@ public statement used for the generalization check. Their pass rate therefore
 because generalization to unseen statements is a third of the grade; a
 parser tuned on all four files would score itself.
 
+**Amended 2026-09-07: all four samples are acceptance targets.** The
+assignment is graded on them, so "explained failure" is no longer where the
+work stops. Two things keep this from becoming the self-scoring the split
+exists to prevent:
+
+- **Thresholds** are still tuned on the tuning file alone. A number in §7
+  (a tolerance, a gap, a ratio) is never adjusted to make a held-out file
+  pass.
+- **Structural rules** — a *shape* of page the parser did not know — are
+  admitted only through the generated corpus (§12.1, "held-out corpus"):
+  the shape is first written as a fixture whose ground truth is exact by
+  construction, the rule is developed against that fixture, and the sample
+  then *measures* it. A rule that is exercised by one real file and no
+  fixture is a bank-specific branch in disguise, and §7.1 still forbids it.
+
+The samples were inspected to *find* the shapes (a page scanned with a
+sideways offset, a cheque listing set several to a line, a row whose date
+OCR lost); the fixes are stated in terms of those shapes, never of the bank.
+
 ### 12.2 Definition of done
 
 The CLI exits **0** when every period reconciled, **1** when one did not
@@ -796,9 +815,10 @@ validates each result against `ExtractResult` and the §3 invariants, compares
 summary fields for **exact** equality, prints a pass/fail table with residuals
 and cost, writes a JSON report, and exits non-zero on any failure.
 
-Done means: the tuning file passes fully (all summary fields exact, period
-reconciled, the total checks `ok`); every other file either passes or
-returns a
-**named, quantified** failure — residual, failing checks, diagnosis, and the
-page it points at. An unexplained failure is not done; an explained one is a
-result.
+Done means: **every sample reconciles** — every period, all summary fields
+with ground truth exact, the total checks `ok` — and so does every fixture of
+the generated corpus that describes a shape the parser claims to read. Where
+a sample still does not, the result returns a **named, quantified** failure —
+residual, failing checks, diagnosis, and the page it points at — and the
+README says which sample and why. An unexplained failure is not done; an
+explained one is a result, but no longer the finish line (§12.1, amended).
