@@ -671,9 +671,16 @@ Everything a developer would otherwise decide silently in code.
     `profile_candidate_pages = 3` densest pages, densest first, each distinct
     profile offered once. The period is parsed under each in turn and **the
     first whose rows reconcile is the answer**. When none does, the attempt
-    that fails least badly stands: more checks `ok` first, then the smaller
-    absolute residual. That ordering is a verdict of §5, not a new heuristic:
-    it prefers rows that the printed page evidences over rows it does not.
+    that fails least badly stands: more checks `ok` first; then **fewer rows
+    whose amount had to be inferred** from the balance step (§7.10) — an
+    inferred amount is the tool's own doubt (§8), and a profile that sees the
+    amounts printed is a better reading than one that has to work them out;
+    then the smaller absolute residual. Measured: the listing-page profile
+    above produced the *smaller* residual (−118,768 against −152,322) with
+    eighty more inferred rows, so the residual alone would have kept the
+    wrong columns. That ordering is a verdict of §5 and §8, not a new
+    heuristic: it prefers rows that the printed page evidences over rows it
+    does not.
     1. **Candidate rows** are lines whose leading words parse as a date under
        any candidate format (§7.19, plus the yearless formats of §7.12) and
        that carry at least one money token. Fewer than

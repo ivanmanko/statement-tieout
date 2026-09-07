@@ -182,12 +182,22 @@ def _best_free_attempt(
 
 
 def _fails_less(candidate: _Attempt, incumbent: _Attempt) -> bool:
-    """SPEC §7.21: reconciled first, then more checks ok, then the smaller residual."""
-    def rank(attempt: _Attempt) -> tuple[bool, int, Decimal]:
-        result = attempt.reconciliation
-        return (result.reconciled, len(result.carried_by), -abs(result.residual))
+    return free_rank(candidate.reconciliation, candidate.parsed) > free_rank(
+        incumbent.reconciliation, incumbent.parsed
+    )
 
-    return rank(candidate) > rank(incumbent)
+
+def free_rank(result: Reconciliation, parsed: ParsedRows) -> tuple[bool, int, int, Decimal]:
+    """How well one free attempt did, higher is better (SPEC §7.21).
+
+    Reconciled first; then more checks `ok`; then fewer rows whose amount had
+    to be inferred from the balance step (§7.10) — an inferred amount is the
+    tool's own doubt (§8), and a profile that sees the amounts printed is a
+    better reading than one that has to work them out; then the smaller
+    residual.
+    """
+    inferred = sum(1 for row in parsed.transactions if row.recovered)
+    return (result.reconciled, len(result.carried_by), -inferred, -abs(result.residual))
 
 
 def _attempt(
