@@ -104,7 +104,9 @@ it, and we climb only on rejection.
 2. **Period segmentation.** Split pages into periods using the anchors in
    §7.3, *before* any row parsing. A file with no anchor is one period.
 3. **Rung 0 — heuristic layout profile.** Derive a `LayoutProfile` (§7.4)
-   from word coordinates alone: no model, no network, $0.
+   from word coordinates alone: no model, no network, $0. The rung offers
+   the profiles of the few densest pages in turn (§7.21), and the verifier
+   (§5) — not the page count — decides which one stands.
 4. **Rung 1 — cached profile.** If this template fingerprint (§7.7) was seen
    before, load its stored profile instead of deriving one. Still $0.
 5. **Parse.** Read the printed summary block (§7.5) and parse transaction
@@ -659,6 +661,19 @@ Everything a developer would otherwise decide silently in code.
     with it; measured, pooling their amounts into the same clusters
     destroyed the column statistics and left a 99-page binder with no usable
     profile at all.
+
+    **The densest page is not always the table, so several are offered.**
+    Measured on the same binder: a cheque listing set three to a line
+    out-counts every page of the transaction table, and the profile derived
+    from it put the deposits column where the cheque amounts sit — 84 rows of
+    that statement lost their amount and took a wrong one from the balance
+    step. Rung 0 therefore derives a profile from each of the
+    `profile_candidate_pages = 3` densest pages, densest first, each distinct
+    profile offered once. The period is parsed under each in turn and **the
+    first whose rows reconcile is the answer**. When none does, the attempt
+    that fails least badly stands: more checks `ok` first, then the smaller
+    absolute residual. That ordering is a verdict of §5, not a new heuristic:
+    it prefers rows that the printed page evidences over rows it does not.
     1. **Candidate rows** are lines whose leading words parse as a date under
        any candidate format (§7.19, plus the yearless formats of §7.12) and
        that carry at least one money token. Fewer than

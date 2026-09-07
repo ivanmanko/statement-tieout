@@ -13,10 +13,11 @@ import json
 import logging
 import time
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 from .layout.dates import starts_with_date
-from .layout.heuristic import derive_profile
+from .layout.heuristic import derive_profiles
 from .layout.llm import profile_from_pages
 from .layout.profile import LayoutProfile
 from .llm.client import LLMClient, Usage, build_client
@@ -119,8 +120,8 @@ def extract_period(
     header_lines, body_lines = _split_at_first_row(lines)
     reading = read_header(header_lines, body_lines)
 
-    profile = derive_profile(pages)
-    attempt = _attempt(pages, profile, reading)
+    profiles = derive_profiles(pages)
+    attempt = _best_free_attempt(pages, profiles, reading)
     usage = Usage()
 
     if not attempt.reconciliation.reconciled and client is not None:
@@ -132,7 +133,7 @@ def extract_period(
         usage = _combined(usage, repair_usage)
 
     warnings = list(attempt.warnings)
-    if profile is None and not usage.calls:
+    if not profiles and not usage.calls:
         warnings.append("no layout profile could be derived from these pages")
 
     return (
@@ -158,6 +159,35 @@ class _Attempt:
     @property
     def warnings(self) -> list[str]:
         return self.parsed.warnings
+
+
+def _best_free_attempt(
+    pages: list[Page], profiles: list[LayoutProfile], reading: HeaderReading
+) -> _Attempt:
+    """Rung 0: try each candidate profile in turn; the verifier picks (SPEC §7.21).
+
+    The first profile whose rows reconcile is the answer. When none does, the
+    attempt that fails least badly stands — more checks `ok`, then the smaller
+    residual — so the diagnosis and the repair rung work on the best rows the
+    page gave for free.
+    """
+    best = _attempt(pages, profiles[0] if profiles else None, reading)
+    for profile in profiles[1:]:
+        if best.reconciliation.reconciled:
+            break
+        candidate = _attempt(pages, profile, reading)
+        if _fails_less(candidate, best):
+            best = candidate
+    return best
+
+
+def _fails_less(candidate: _Attempt, incumbent: _Attempt) -> bool:
+    """SPEC §7.21: reconciled first, then more checks ok, then the smaller residual."""
+    def rank(attempt: _Attempt) -> tuple[bool, int, Decimal]:
+        result = attempt.reconciliation
+        return (result.reconciled, len(result.carried_by), -abs(result.residual))
+
+    return rank(candidate) > rank(incumbent)
 
 
 def _attempt(

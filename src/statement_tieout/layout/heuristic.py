@@ -25,6 +25,7 @@ MIN_COLUMN_ROWS = 2
 MAX_EDGE_SPREAD = 2.0
 COLUMN_PAD = 2.0
 MIN_BALANCE_PAIRS = 2
+PROFILE_CANDIDATE_PAGES = 3
 
 _CANDIDATE_FORMATS = DATE_FORMATS + YEARLESS_FORMATS
 
@@ -36,6 +37,24 @@ class _Row:
     money: list[tuple[Word, Decimal]]
 
 
+def derive_profiles(pages: list[Page]) -> list[LayoutProfile]:
+    """The profiles of the densest pages, densest first, each offered once.
+
+    The densest page is usually the table, but not always: a cheque listing
+    set three to a line out-counts any page of the table it summarises, and
+    the profile it yields puts a column where the cheque amounts sit. So rung
+    0 offers the profiles of the `PROFILE_CANDIDATE_PAGES` densest pages in
+    turn (SPEC §7.21), and the verifier — not the page count — chooses.
+    """
+    ranked = sorted(pages, key=lambda page: len(_scan([page])[0]), reverse=True)
+    profiles: list[LayoutProfile] = []
+    for page in ranked[:PROFILE_CANDIDATE_PAGES]:
+        profile = _profile_of([page])
+        if profile is not None and profile not in profiles:
+            profiles.append(profile)
+    return profiles
+
+
 def derive_profile(pages: list[Page]) -> LayoutProfile | None:
     """A profile for these pages, or None when the page gives no evidence.
 
@@ -44,7 +63,11 @@ def derive_profile(pages: list[Page]) -> LayoutProfile | None:
     statement's own columns, and pooling them destroys the statistics the
     column rule depends on.
     """
-    rows, headings = _scan(_densest_table_page(pages))
+    return _profile_of(_densest_table_page(pages))
+
+
+def _profile_of(pages: list[Page]) -> LayoutProfile | None:
+    rows, headings = _scan(pages)
     if len(rows) < MIN_CANDIDATE_ROWS:
         return None
 
