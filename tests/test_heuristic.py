@@ -322,3 +322,76 @@ class TestSectionLabelsNeedWordBoundaries:
         """OCR prints `Beginning Balance asof` on one page and `Balanceasof` on the next."""
         profile = derive_profile([self.page_with("CREDITSandother")])
         assert profile.deposit_sections == ["CREDITSandother"]
+
+
+class TestSeveralCandidateProfiles:
+    """SPEC §7.21 — the densest page is not always the table.
+
+    Measured on the Ixonia binder: a cheque listing set three to a line
+    carries more date-and-money lines than any page of the transaction table,
+    so the "densest table page" was the listing, and the profile it yielded
+    put the deposits column where the cheque amounts sit. Rung 0 now offers
+    the profiles of the few densest pages in turn and the verifier chooses.
+    """
+
+    def table_page(self, number: int = 1):
+        ledger = [
+            (None, "200.51", "4,799.49"),
+            ("1,001.28", None, "5,800.77"),
+            (None, "202.51", "5,598.26"),
+            ("1,003.28", None, "6,601.54"),
+            (None, "204.51", "6,397.03"),
+            ("1,005.28", None, "7,402.31"),
+        ]
+        return page(*[
+            two_column_row(100.0 + i * 12.0, f"04/0{i + 1}", "PAYMENT",
+                           deposit=deposit, withdrawal=withdrawal, balance=balance)
+            for i, (deposit, withdrawal, balance) in enumerate(ledger)
+        ], number=number)
+
+    def listing_page(self, number: int = 2):
+        """A cheque listing: two cheques to a line, amounts nowhere near the table's columns."""
+        return page(*[
+            line(100.0 + i * 12.0, (DATE_X, f"04/1{i}"), (90.0, f"4078{i}"),
+                 (150.0, f"{100 + i}.00"), (250.0, f"04/2{i}"), (310.0, f"4079{i}"),
+                 (370.0, f"{300 + i}.00"))
+            for i in range(8)
+        ], number=number)
+
+    def test_the_densest_page_still_comes_first(self):
+        from statement_tieout.layout.heuristic import derive_profiles
+
+        profiles = derive_profiles([self.table_page(), self.listing_page()])
+        assert profiles[0] == derive_profile([self.listing_page()])
+
+    def test_the_table_page_is_offered_as_well(self):
+        from statement_tieout.layout.heuristic import derive_profiles
+
+        profiles = derive_profiles([self.table_page(), self.listing_page()])
+        assert derive_profile([self.table_page()]) in profiles
+
+    def test_identical_profiles_are_offered_once(self):
+        from statement_tieout.layout.heuristic import derive_profiles
+
+        pages = [self.table_page(1), self.table_page(2), self.table_page(3)]
+        assert len(derive_profiles(pages)) == 1
+
+    def test_pages_that_yield_no_profile_are_skipped(self):
+        from statement_tieout.layout.heuristic import derive_profiles
+
+        blank = page(line(100.0, (DESC_X, "THIS PAGE INTENTIONALLY LEFT BLANK")), number=3)
+        only = derive_profile([self.table_page(1)])
+        assert derive_profiles([blank, self.table_page(1)]) == [only]
+
+    def test_no_page_with_a_profile_is_an_empty_list(self):
+        from statement_tieout.layout.heuristic import derive_profiles
+
+        blank = page(line(100.0, (DESC_X, "NOTHING HERE")), number=1)
+        assert derive_profiles([blank]) == []
+
+    def test_at_most_a_few_pages_are_tried(self):
+        from statement_tieout.layout.heuristic import PROFILE_CANDIDATE_PAGES, derive_profiles
+
+        pages = [self.listing_page(number=n) for n in range(1, PROFILE_CANDIDATE_PAGES + 4)]
+        pages.append(self.table_page(number=99))  # the sparsest page of all: never reached
+        assert derive_profile([self.table_page()]) not in derive_profiles(pages)

@@ -191,3 +191,34 @@ class TestRepairRung:
         result, _, _ = extract_period([self.broken()], client)
         assert result.reconciliation.reconciled is False
         assert len(result.transactions) == 6
+
+
+class TestRungZeroOffersSeveralProfiles:
+    """SPEC §4 stage 3 — the free rung produces candidates, the verifier chooses.
+
+    Measured on the Ixonia binder: the page with the most date-and-money
+    lines was a cheque listing, not the table, and its profile misplaced a
+    column for the whole period. The table page's profile reconciles; it is
+    reached without a model and without a network.
+    """
+
+    def listing_page(self, number: int = 2):
+        """Denser than the table, and laid out nothing like it."""
+        return page(*[
+            line(100.0 + i * 12.0, (DATE_X, f"01/1{i}/2025"), (90.0, f"4078{i}"),
+                 (150.0, f"{100 + i}.00"), (250.0, f"01/2{i}/2025"), (310.0, f"4079{i}"),
+                 (370.0, f"{300 + i}.00"))
+            for i in range(8)
+        ], number=number)
+
+    def test_the_period_reconciles_on_the_table_page_profile(self):
+        period, _, usage = extract_period([reconciling_page(), self.listing_page()], None)
+        assert period.reconciliation.reconciled
+        assert usage.calls == 0
+        assert len(period.transactions) == 6
+
+    def test_the_model_is_not_asked_when_a_free_candidate_reconciles(self):
+        client = StubClient(replies=["{}"])
+        period, _, _ = extract_period([reconciling_page(), self.listing_page()], client)
+        assert period.reconciliation.reconciled
+        assert client.calls == []
