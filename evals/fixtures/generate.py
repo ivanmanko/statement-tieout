@@ -64,13 +64,25 @@ class Statement:
     rows: list[Row] = field(default_factory=list)
     currency: str = "$"
 
+    #: Cheques printed in a listing set two to a line (SPEC §7.22). With
+    #: `listing="sole"` the listing is their only record and they are not in
+    #: `rows`; with `listing="duplicate"` the same cheques are rows of the
+    #: table as well, and the listing repeats them.
+    cheques: list[Row] = field(default_factory=list)
+    listing: str | None = None
+
     @property
     def deposits(self) -> list[Row]:
         return [row for row in self.rows if row.deposit]
 
     @property
     def withdrawals(self) -> list[Row]:
-        return [row for row in self.rows if not row.deposit]
+        listed_only = self.cheques if self.listing == "sole" else []
+        return [row for row in self.rows if not row.deposit] + listed_only
+
+    @property
+    def transactions(self) -> list[Row]:
+        return self.deposits + self.withdrawals
 
     @property
     def deposits_total(self) -> Decimal:
@@ -102,7 +114,8 @@ DESCRIPTIONS = (
 
 
 def build(seed: int, bank: str, last4: str, start: date, days: int, count: int,
-          opening: str, currency: str = "$") -> Statement:
+          opening: str, currency: str = "$", cheques: int = 0,
+          listing: str | None = None) -> Statement:
     """A period of plausible activity, laid out to the cent from a fixed seed."""
     rolling = random.Random(seed)
     statement = Statement(
@@ -112,6 +125,7 @@ def build(seed: int, bank: str, last4: str, start: date, days: int, count: int,
         end=start + timedelta(days=days - 1),
         opening=Decimal(opening),
         currency=currency,
+        listing=listing,
     )
     balance = statement.opening
     for index in range(count):
@@ -127,6 +141,19 @@ def build(seed: int, bank: str, last4: str, start: date, days: int, count: int,
                 balance=balance,
             )
         )
+    for index in range(cheques):
+        amount = (Decimal(rolling.randrange(2_500, 900_00)) / 100).quantize(CENTS)
+        cheque = Row(
+            when=start + timedelta(days=rolling.randrange(days)),
+            description=f"CHECK {40780 + index}",
+            amount=amount,
+            deposit=False,
+        )
+        statement.cheques.append(cheque)
+        if listing == "duplicate":
+            # The table carries the cheque too; the listing only repeats it.
+            balance -= amount
+            statement.rows.append(Row(cheque.when, cheque.description, amount, False, balance))
     return statement
 
 
@@ -192,25 +219,60 @@ def _horizontal_summary(pen, statement: Statement, top: float) -> float:
     return top - 40
 
 
-def _rows_two_column(pen, statement: Statement, top: float, fmt: str) -> None:
+def _rows_two_column(pen, statement: Statement, top: float, fmt: str, *,
+                     balance: bool = True, serials: bool = False) -> float:
     pen.setFont("Helvetica-Bold", 8)
     pen.drawString(LEFT, top, "Date")
     pen.drawString(LEFT + 58, top, "Description")
     pen.drawRightString(392.0, top, "Deposits")
     pen.drawRightString(468.0, top, "Withdrawals")
-    pen.drawRightString(RIGHT, top, "Balance")
+    if balance:
+        pen.drawRightString(RIGHT, top, "Balance")
     pen.setFont("Helvetica", 8)
     y = top - 14
-    for row in statement.rows:
+    for index, row in enumerate(statement.rows):
         if y < 60:
             pen.showPage()
             pen.setFont("Helvetica", 8)
             y = 740
+        if serials and index % 6 == 3:
+            # A cheque image's serial number in the margin, a few points above
+            # the row beside it — the stray token that tore rows in two.
+            pen.setFont("Helvetica", 5)
+            pen.drawString(8.0, y + 3.0, f"{1000 + index:08d}")
+            pen.setFont("Helvetica", 8)
         pen.drawString(LEFT, y, row.when.strftime(fmt))
         pen.drawString(LEFT + 58, y, row.description)
         column = 392.0 if row.deposit else 468.0
         pen.drawRightString(column, y, f"{row.amount:,.2f}")
-        pen.drawRightString(RIGHT, y, f"{row.balance:,.2f}")
+        if balance:
+            pen.drawRightString(RIGHT, y, f"{row.balance:,.2f}")
+        y -= 11
+    return y
+
+
+def _cheque_listing(pen, statement: Statement, top: float, fmt: str) -> None:
+    """A cheque section set two to a line under its own repeated header (SPEC §7.22)."""
+    y = top - 16
+    if y < 120:
+        pen.showPage()
+        y = 740
+    pen.setFont("Helvetica-Bold", 9)
+    pen.drawString(LEFT, y, "CHECKS PAID")
+    y -= 13
+    pen.setFont("Helvetica-Bold", 8)
+    for offset in (0.0, 252.0):
+        pen.drawString(LEFT + offset, y, "Date")
+        pen.drawString(LEFT + 50 + offset, y, "Check No.")
+        pen.drawRightString(LEFT + 200 + offset, y, "Amount")
+    y -= 12
+    pen.setFont("Helvetica", 8)
+    cheques = sorted(statement.cheques, key=lambda row: row.description)
+    for index in range(0, len(cheques), 2):
+        for offset, cheque in zip((0.0, 252.0), cheques[index : index + 2], strict=False):
+            pen.drawString(LEFT + offset, y, cheque.when.strftime(fmt))
+            pen.drawString(LEFT + 50 + offset, y, cheque.description.split()[-1])
+            pen.drawRightString(LEFT + 200 + offset, y, f"{cheque.amount:,.2f}")
         y -= 11
 
 
@@ -283,8 +345,14 @@ def _rows_money_in_out(pen, statement: Statement, top: float) -> None:
 # --------------------------------------------------------------------------- scanning
 
 
-def scanned(pdf: bytes, dpi: int, angle: float, blur: float, noise: int) -> bytes:
-    """The same statement as a photocopy: rasterized, set off square, degraded."""
+def scanned(pdf: bytes, dpi: int, angle: float, blur: float, noise: int,
+            shifts: tuple[int, ...] = ()) -> bytes:
+    """The same statement as a photocopy: rasterized, set off square, degraded.
+
+    `shifts` moves each page sideways by that many pixels — sheets fed through
+    a scanner land a few points to the left or right of one another (SPEC
+    §7.2), and a profile derived from one page then misses the next.
+    """
     import numpy
     import pypdfium2
     from PIL import Image, ImageFilter
@@ -294,6 +362,10 @@ def scanned(pdf: bytes, dpi: int, angle: float, blur: float, noise: int) -> byte
     try:
         for index in range(len(document)):
             image = document[index].render(scale=dpi / 72).to_pil().convert("L")
+            if index < len(shifts) and shifts[index]:
+                sheet = Image.new("L", image.size, 255)
+                sheet.paste(image, (shifts[index], 0))
+                image = sheet
             if angle:
                 image = image.rotate(angle, resample=Image.BICUBIC, fillcolor=255)
             if blur:
@@ -314,7 +386,8 @@ def scanned(pdf: bytes, dpi: int, angle: float, blur: float, noise: int) -> byte
 # --------------------------------------------------------------------------- fixtures
 
 
-def render(statement: Statement, style: str, *, counts: bool, fmt: str = "%m/%d/%Y") -> bytes:
+def render(statement: Statement, style: str, *, counts: bool, fmt: str = "%m/%d/%Y",
+           balance: bool = True, serials: bool = False) -> bytes:
     target = BytesIO()
     pen = _canvas(target)
     period_line = (
@@ -332,7 +405,9 @@ def render(statement: Statement, style: str, *, counts: bool, fmt: str = "%m/%d/
     else:
         top = _vertical_summary(pen, statement, top, counts=counts)
     if style == "two_column":
-        _rows_two_column(pen, statement, top, fmt)
+        bottom = _rows_two_column(pen, statement, top, fmt, balance=balance, serials=serials)
+        if statement.cheques:
+            _cheque_listing(pen, statement, bottom, fmt)
     elif style == "signed":
         _rows_signed(pen, statement, top, fmt)
     elif style == "sectioned":
@@ -368,7 +443,7 @@ def truth(statement: Statement, *, counts: bool, notes: str) -> dict:
         },
         "summary": summary,
         "periods": 1,
-        "transactions_count": len(statement.rows),
+        "transactions_count": len(statement.transactions),
         "notes": notes,
     }
 
@@ -431,6 +506,40 @@ FIXTURES = (
         "The British shape: `Money out` before `Money in`, dates written "
         "`01 Apr 25`, and sterling. Nothing in the parser may assume a dollar or "
         "an American date.",
+    ),
+    (
+        "gen_07_two_column_scan_offset_pages",
+        dict(seed=71, bank="Marlowe and Sons Bank", last4="3350",
+             start=date(2025, 5, 1), days=31, count=118, opening="402118.40"),
+        dict(style="two_column", counts=True, serials=True),
+        dict(dpi=200, angle=0.0, blur=0.0, noise=0, shifts=(0, 42, -30)),
+        "Three scanned pages fed with a sideways offset from one another — 15 and "
+        "11 points — and cheque-image serial numbers in the margin a few points "
+        "above their rows (SPEC §7.2). A profile derived from one page must still "
+        "read the others, and a stray token must not tear a row into two lines.",
+    ),
+    (
+        "gen_08_cheque_listing_sole_record",
+        dict(seed=83, bank="Ashcombe State Bank", last4="9187",
+             start=date(2025, 7, 1), days=31, count=36, opening="55210.66",
+             cheques=5, listing="sole"),
+        dict(style="two_column", counts=True, balance=False),
+        None,
+        "A cheque section set two to a line under a repeated `Date Check No. "
+        "Amount` header, and it is the ONLY record of its five cheques: the table "
+        "does not carry them (SPEC §7.22). The period reconciles only with the "
+        "listing added.",
+    ),
+    (
+        "gen_09_cheque_listing_duplicate",
+        dict(seed=97, bank="Redmayne Trust Company", last4="0723",
+             start=date(2025, 8, 1), days=31, count=36, opening="88760.12",
+             cheques=5, listing="duplicate"),
+        dict(style="two_column", counts=True),
+        None,
+        "The same listing shape, but every cheque in it is ALSO a row of the table "
+        "(SPEC §7.22). Adding the listing double-counts; the period reconciles only "
+        "with it left out — and nothing on the page says which case this is.",
     ),
 )
 

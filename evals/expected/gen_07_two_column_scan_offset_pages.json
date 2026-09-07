@@ -1,0 +1,25 @@
+{
+  "provenance": {
+    "summary": "exact by construction \u2014 the generator laid these rows out",
+    "generator": "evals/fixtures/generate.py, deterministic from a fixed seed"
+  },
+  "account": {
+    "bank": "Marlowe and Sons Bank",
+    "account_last4": "3350",
+    "period": {
+      "start": "2025-05-01",
+      "end": "2025-05-31"
+    }
+  },
+  "summary": {
+    "beginning_balance": 402118.4,
+    "ending_balance": 362537.12,
+    "deposits_total": 131717.55,
+    "withdrawals_total": 171298.83,
+    "deposits_count": 52,
+    "withdrawals_count": 66
+  },
+  "periods": 1,
+  "transactions_count": 118,
+  "notes": "Three scanned pages fed with a sideways offset from one another \u2014 15 and 11 points \u2014 and cheque-image serial numbers in the margin a few points above their rows (SPEC \u00a77.2). A profile derived from one page must still read the others, and a stray token must not tear a row into two lines."
+}

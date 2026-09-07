@@ -1,0 +1,25 @@
+{
+  "provenance": {
+    "summary": "exact by construction \u2014 the generator laid these rows out",
+    "generator": "evals/fixtures/generate.py, deterministic from a fixed seed"
+  },
+  "account": {
+    "bank": "Redmayne Trust Company",
+    "account_last4": "0723",
+    "period": {
+      "start": "2025-08-01",
+      "end": "2025-08-31"
+    }
+  },
+  "summary": {
+    "beginning_balance": 88760.12,
+    "ending_balance": 95051.89,
+    "deposits_total": 48399.48,
+    "withdrawals_total": 42107.71,
+    "deposits_count": 20,
+    "withdrawals_count": 21
+  },
+  "periods": 1,
+  "transactions_count": 41,
+  "notes": "The same listing shape, but every cheque in it is ALSO a row of the table (SPEC \u00a77.22). Adding the listing double-counts; the period reconciles only with it left out \u2014 and nothing on the page says which case this is."
+}

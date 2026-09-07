@@ -1,0 +1,25 @@
+{
+  "provenance": {
+    "summary": "exact by construction \u2014 the generator laid these rows out",
+    "generator": "evals/fixtures/generate.py, deterministic from a fixed seed"
+  },
+  "account": {
+    "bank": "Ashcombe State Bank",
+    "account_last4": "9187",
+    "period": {
+      "start": "2025-07-01",
+      "end": "2025-07-31"
+    }
+  },
+  "summary": {
+    "beginning_balance": 55210.66,
+    "ending_balance": 48952.4,
+    "deposits_total": 38433.66,
+    "withdrawals_total": 44691.92,
+    "deposits_count": 14,
+    "withdrawals_count": 27
+  },
+  "periods": 1,
+  "transactions_count": 41,
+  "notes": "A cheque section set two to a line under a repeated `Date Check No. Amount` header, and it is the ONLY record of its five cheques: the table does not carry them (SPEC \u00a77.22). The period reconciles only with the listing added."
+}
