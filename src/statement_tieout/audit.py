@@ -291,6 +291,12 @@ _DOUBT_PATTERNS: tuple[tuple[str, str], ...] = (
      "Determine the side of these rows on the page."),
     ("carry no text layer",
      "The pages were read by OCR; descriptions are less faithful than amounts."),
+    ("read from a listing set several to a line",
+     "Vouch these rows to the listing on the page named."),
+    ("was read but left out",
+     "Confirm on the page that the listing repeats rows already in the table."),
+    ("no heading to say their side",
+     "Determine the side of the listing on the page; its rows were not added."),
     ("no layout profile could be derived",
      "No column layout was recognised; re-perform this period by hand."),
 )

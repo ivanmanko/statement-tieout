@@ -15,9 +15,12 @@ from pydantic import ValidationError
 
 from ..layout import Column, LayoutProfile, SideStrategy
 from ..layout.dates import MAX_DATE_WORDS, STAND_IN_YEAR, parse_date
-from ..money import ZERO, parse_money
+from ..money import ZERO, find_money, parse_money
 from ..pdf.model import Page, Word
+from ..pdf.ocr import ONE_LOOKALIKES
 from ..schema import DateRange, Transaction
+from .labels import DEPOSIT_LABELS, WITHDRAWAL_LABELS, matches_label
+from .listing import Listing, read_header, read_records
 
 DEPOSIT, WITHDRAWAL = "deposit", "withdrawal"
 
@@ -33,6 +36,11 @@ class ParsedRows:
     transactions: list[Transaction] = field(default_factory=list)
     balances: list[Decimal] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+    #: Rows read from a listing set several to a line (SPEC §7.22), kept apart
+    #: from the table's own rows: whether they add to the table or repeat it
+    #: is the verifier's call, not the parser's.
+    listing: list[Transaction] = field(default_factory=list)
 
 
 @dataclass
@@ -55,6 +63,7 @@ def parse_rows(
 
     for page in pages:
         state.page = page.number
+        state.listing = None  # SPEC §7.22: a listing ends with its page
         for index, line in enumerate(page.lines()):
             state.line_index = index
             state.consume(line, parsed)
@@ -80,12 +89,31 @@ class _State:
     rejected_rows: int = 0
     summary_rows: int = 0
     recovered_rows: int = 0
+    unsided_listing_rows: int = 0
     page: int | None = None
     line_index: int | None = None
 
+    #: The listing being read, if any, and the side its heading gave it.
+    listing: Listing | None = None
+    listing_side: str | None = None
+    #: The side named by the last heading seen, whatever the side strategy.
+    heading_side: str | None = None
+
     def consume(self, line: list[Word], parsed: ParsedRows) -> None:
+        if self.listing is not None and self._consume_listing(line, parsed):
+            return
+
         when = self._date_on(line)
         amounts = self._money_on(line)
+
+        if when is None and not amounts:
+            side = _heading_side(_text(line))
+            if side is not None:
+                self.heading_side = side
+            listing = read_header(line)
+            if listing is not None:
+                self._open_listing(listing)
+                return
 
         if when is not None and any(m.column is not None for m in amounts):
             if self._is_multi_column_summary(line):
@@ -106,6 +134,50 @@ class _State:
 
         if not amounts and self._is_description_only(line):
             self._continuation(line, parsed)
+
+    # ------------------------------------------------------------ listings
+
+    def _open_listing(self, listing: Listing) -> None:
+        """SPEC §7.22: the heading above says the side; a header naming a check does too."""
+        self.listing = listing
+        self.listing_side = self.heading_side or (WITHDRAWAL if listing.names_a_check else None)
+
+    def _consume_listing(self, line: list[Word], parsed: ParsedRows) -> bool:
+        """Read this line as listing records. False when the listing has ended here."""
+        assert self.listing is not None
+        records = read_records(
+            self.listing, line, date_of=self._parse_join, amount_at=self._amount_at
+        )
+        if records:
+            self._emit_listing(records, line, parsed)
+            return True
+
+        text = _text(line)
+        if _heading_side(text) is not None or find_money(text) or self._date_on(line):
+            self.listing = None  # a heading, a row or a total: the listing is over
+            return False
+        return True  # noise between the lines of a listing, skipped
+
+    def _emit_listing(self, records, line: list[Word], parsed: ParsedRows) -> None:
+        if self.listing_side is None:
+            self.unsided_listing_rows += len(records)
+            return
+        for record in records:
+            if record.amount == ZERO:
+                self.zero_rows += 1
+                continue
+            parsed.listing.append(
+                Transaction(
+                    date=record.when,
+                    description=record.description,
+                    deposit=record.amount if self.listing_side == DEPOSIT else None,
+                    withdrawal=record.amount if self.listing_side == WITHDRAWAL else None,
+                    page=self.page,
+                    line=self.line_index,
+                )
+            )
+
+    # ------------------------------------------------------------ balance step
 
     def _recoverable(self, amounts: list[_Money]) -> bool:
         """SPEC §7.10: a balance with no amount beside it, and a chain to measure from."""
@@ -263,8 +335,18 @@ class _State:
         return None
 
     def _parse_join(self, words: list[Word]) -> date | None:
+        """The date these boxes spell together, with `1` tried for its look-alikes.
+
+        The glyph repair at ingest (SPEC §7.2) leaves a box with no digit
+        alone, so `01-21` arriving as `0`, `1-2`, `i` keeps its `i` until the
+        boxes are joined — and the join is the first place the substitution can
+        be verified against a date format.
+        """
         for text in _joins(words):
             when = self._parse_date(text)
+            if when is None and any(character.isdigit() for character in text):
+                repaired = text.translate(ONE_LOOKALIKES)
+                when = self._parse_date(repaired) if repaired != text else None
             if when is not None:
                 return when
         return None
@@ -380,6 +462,20 @@ class _State:
                 f"{self.yearless_rows} row(s) used a date format carrying no year and no "
                 "statement period was known, so the year is a placeholder"
             )
+        if self.unsided_listing_rows:
+            parsed.warnings.append(
+                f"{self.unsided_listing_rows} row(s) of a listing set several to a line had "
+                "no heading to say their side and were left out"
+            )
+
+
+def _heading_side(text: str) -> str | None:
+    """The side a heading names, by the summary-label vocabulary (SPEC §7.5)."""
+    if matches_label(text, DEPOSIT_LABELS):
+        return DEPOSIT
+    if matches_label(text, WITHDRAWAL_LABELS):
+        return WITHDRAWAL
+    return None
 
 
 def _touching(words: list[Word]) -> bool:

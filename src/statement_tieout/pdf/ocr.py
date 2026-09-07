@@ -110,7 +110,7 @@ def _tokenize(text: str) -> list[str]:
 
 
 #: Glyphs OCR returns for the digit 1 (SPEC §7.2).
-_ONE_LOOKALIKES = str.maketrans("iIl|", "1111")
+ONE_LOOKALIKES = str.maketrans("iIl|", "1111")
 
 
 def _repair(token: str) -> str:
@@ -131,7 +131,7 @@ def _repair_ones(token: str) -> str:
     # a dozen strptime failures each.
     if not any(character.isdigit() for character in token):
         return token
-    candidate = token.translate(_ONE_LOOKALIKES)
+    candidate = token.translate(ONE_LOOKALIKES)
     if candidate == token:
         return token
     return candidate if _means_something(candidate) else token

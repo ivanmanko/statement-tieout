@@ -212,9 +212,56 @@ def _attempt(
             period=reading.account.period,
             opening_balance=reading.beginning_balance,
         )
+    attempt = _verify(pages, reading, parsed)
+    if parsed.listing:
+        attempt = _with_or_without_listing(pages, reading, attempt)
+    return attempt
+
+
+def _verify(pages: list[Page], reading: HeaderReading, parsed: ParsedRows) -> _Attempt:
     summary = build_summary(reading, parsed.transactions)
     result = _explain(reconcile(summary, parsed.transactions), summary, reading, parsed, pages)
     return _Attempt(parsed=parsed, summary=summary, reconciliation=result)
+
+
+def _with_or_without_listing(
+    pages: list[Page], reading: HeaderReading, without: _Attempt
+) -> _Attempt:
+    """SPEC §7.22: a listing is added to the table only when the verifier prefers it.
+
+    On one statement the listing is the only record of its cheques; on another
+    it repeats rows the table already holds. Nothing on the page tells the two
+    apart, so both readings are verified and the better one stands — and
+    either way the result says what was done with the listing.
+    """
+    parsed = without.parsed
+    count = len(parsed.listing)
+    where = sorted({row.page for row in parsed.listing if row.page is not None})
+    pages_named = ", ".join(str(page) for page in where)
+    merged = ParsedRows(
+        transactions=sorted(
+            [*parsed.transactions, *parsed.listing],
+            key=lambda row: (row.page or 0, row.line or 0),
+        ),
+        balances=[],  # no longer aligned with the rows; the chain check stands down
+        warnings=[
+            *parsed.warnings,
+            f"{count} row(s) read from a listing set several to a line (page {pages_named}) "
+            "and added to the table, because the period reconciles with them",
+        ],
+    )
+    with_listing = _verify(pages, reading, merged)
+    if free_rank(with_listing.reconciliation, merged) > free_rank(
+        without.reconciliation, parsed
+    ):
+        return with_listing
+
+    parsed.warnings.append(
+        f"a listing of {count} row(s) set several to a line (page {pages_named}) was read "
+        "but left out: the period fails worse with those rows than without them, so they "
+        "are taken to repeat rows the table already holds"
+    )
+    return without
 
 
 def _escalate(

@@ -355,7 +355,12 @@ Everything a developer would otherwise decide silently in code.
    one value per row, so two touching fragments inside it are one number; the
    date column joins them plainly, and the amount column also tries a decimal
    point before a final two-digit group. Longest join wins, so `0` + `1-2` +
-   `1` reads as `01-21` rather than stopping at `01-2`.
+   `1` reads as `01-21` rather than stopping at `01-2`. The glyph repair
+   above leaves a box with no digit alone, so `0` + `1-2` + `i` still carries
+   its `i` when the boxes are joined; the join therefore tries `1` for the
+   look-alikes once more, and keeps it only where the joined text then parses
+   as a date. Measured: that is how the second cheque of a two-to-a-line
+   listing gets its date.
 
    **Consequence, recorded rather than hidden:** an all-capitals
    description with its spaces lost stays one token, so descriptions from a
@@ -721,6 +726,50 @@ Everything a developer would otherwise decide silently in code.
        excludes the table's own column headers, which carry exactly those
        words ("Deposits/Credits", "Checks/Debits") and would otherwise be
        read as section markers.
+22. **A listing set several to a line.** Two of the four samples print their
+    cheques this way: a header reading `NUMBER DATE AMOUNT NUMBER DATE
+    AMOUNT`, or `Date Check No. Amount` repeated three times across the page,
+    and under it lines that each hold two or three transactions. The row
+    model of §7.6 reads one transaction per line, so those lines were either
+    skipped or — worse — one amount of three read into the balance step.
+
+    **The header is the layout.** A line with no date and no money whose
+    words name an amount at least `min_listing_slots = 2` times, with a word
+    naming the date before each, opens a listing. Each repetition is a
+    **slot**; slot boundaries fall midway between one repetition's last word
+    and the next one's first. Column names are matched by prefix,
+    case-insensitively (`date`; `amount`; `check`, `cheque`, `chk`), because
+    OCR glues `CheckNo.` as readily as it separates it.
+
+    **Each line under the header is read slot by slot**: the words whose
+    midpoint falls in a slot are one record when they carry a date (leftmost,
+    longest join first — the same date formats and the same fragment repairs
+    as the table, §7.2) and an amount (the last money in the slot, fragments
+    joined). Whatever else the slot holds — the cheque number — becomes the
+    description. A line yielding no record ends the listing if it carries
+    money, a date or a heading, and is then read as any other line; a line
+    carrying none of those is noise between the listing's lines and is
+    skipped. A listing ends with its page.
+
+    **Side.** The listing's rows take the side of the nearest preceding
+    heading matched against the §7.5 vocabulary (`CHECKS`, `CREDITS`, …),
+    whatever the table's own side strategy. Failing that, a header that
+    names a check is a listing of withdrawals. Failing both, the records are
+    counted in a warning and not read: a side guessed is a row on the wrong
+    side of the page.
+
+    **The listing is kept apart from the table's rows, and the verifier
+    decides whether it belongs.** Measured on two held-out samples, the
+    *same* listing is the only record of its two cheques on one statement
+    and a duplicate view of twenty rows the table already holds on another,
+    and nothing on the page tells the two apart. So the period is verified
+    both without the listing and with it merged into the table in page
+    order, and the reading §7.21 ranks higher stands: reconciled first, then
+    more checks `ok`, then the smaller residual. Either way the result
+    carries a warning saying what was done with the listing and on which
+    page, and the audit view (§8) lists it as extraction uncertainty. With
+    the listing merged, the running-balance chain (§7.11) is no longer
+    aligned with the rows and stands down for that period.
 
 ## 8. The audit view (normative)
 

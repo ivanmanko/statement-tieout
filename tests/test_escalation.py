@@ -275,7 +275,7 @@ def listing_lines(top: float, *rows, heading: str = "CHECKS PAID"):
     lines = [
         line(top, (DESC_X, heading)),
         line(top + 12.0, (DATE_X, "Date"), (80.0, "Check No."), (150.0, "Amount"),
-             (230.0, "Date"), (280.0, "Check No."), (350.0, "Amount")),
+             (200.0, "Date"), (240.0, "Check No."), (300.0, "Amount")),
     ]
     for index, cells in enumerate(rows):
         lines.append(line(top + 24.0 + index * 12.0, *cells))
@@ -312,7 +312,7 @@ def period_with_cheques(*, in_the_table: bool):
     listing = listing_lines(
         140.0 + len(rows) * 12.0 + 12.0,
         ((DATE_X, "01/02/2025"), (80.0, cheques[0][0]), (150.0, cheques[0][1]),
-         (230.0, "01/21/2025"), (280.0, cheques[1][0]), (350.0, cheques[1][1])),
+         (200.0, "01/21/2025"), (262.0, cheques[1][0]), (300.0, cheques[1][1])),
     )
     return page(header, *totals, *rows, *listing)
 
