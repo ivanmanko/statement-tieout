@@ -267,3 +267,20 @@ class TestWhereToLook:
             Reconciliation(reconciled=False, checks={}, residual=Decimal("30.00")),
         ))
         assert "payments" in report.periods[0].next_steps[1].casefold()
+
+
+class TestInheritedDatesAreDoubts:
+    def test_a_row_whose_date_was_inherited_is_listed(self):
+        from statement_tieout.schema import Transaction
+
+        listed = rows(("d", "100.00"), ("d", "20.00"), ("w", "50.00"))
+        listed[1] = listed[1].model_copy(update={"date_inherited": True})
+        report = audit(result(
+            summary(dep="120.00", dep_n=2), listed,
+            Reconciliation.reconciled_on({"balance_equation"}),
+        ))
+        doubts = [e for e in report.periods[0].exceptions
+                  if e.kind is Attribution.EXTRACTION_UNCERTAINTY]
+        assert any("date" in e.description.casefold() for e in doubts)
+        assert report.periods[0].verdict is Verdict.TIED_WITH_NOTES
+        assert isinstance(listed[1], Transaction)

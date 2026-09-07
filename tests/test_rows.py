@@ -691,3 +691,97 @@ class TestListingSetSeveralToALine:
         (record,) = parse_rows([p], self.yearless(), period=self.PERIOD).listing
         assert (record.page, record.line) == (3, 2)
         assert record.recovered is False
+
+
+class TestRowWithoutAReadableDate:
+    """SPEC §7.23 — a row whose date OCR mangled still moves the balance.
+
+    Measured on the Ixonia binder: `Nov 01` arrives as `No V 01` and `May 01`
+    as `May O1`, neither of which is a date, so the first row of a statement
+    was dropped and its chain broke at row 0. The amount is printed in a
+    declared column and the balance continues the chain; only the date is
+    missing, and a statement lists in date order.
+    """
+
+    def test_takes_the_previous_rows_date_when_the_chain_holds(self):
+        p = page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "FIRST"), (LEFT_X, "100.00"),
+                 (BALANCE_X, "1,100.00")),
+            line(112.0, (DATE_X, "O1/O2/2025"), (DESC_X, "REMOTE DEPOSIT"), (LEFT_X, "50.00"),
+                 (BALANCE_X, "1,150.00")),
+            line(124.0, (DATE_X, "01/03/2025"), (DESC_X, "THIRD"), (LEFT_X, "-25.00"),
+                 (BALANCE_X, "1,125.00")),
+        )
+        parsed = parse_rows([p], profile(), opening_balance=Decimal("1000.00"))
+        assert [t.deposit for t in parsed.transactions] == [
+            Decimal("100.00"), Decimal("50.00"), None
+        ]
+        middle = parsed.transactions[1]
+        assert middle.date == date(2025, 1, 1)
+        assert middle.date_inherited is True
+        assert middle.recovered is False
+        assert parsed.transactions[0].date_inherited is False
+        assert parsed.balances == [Decimal("1100.00"), Decimal("1150.00"), Decimal("1125.00")]
+        assert any("date" in w and "1 row" in w for w in parsed.warnings)
+
+    def test_the_first_row_of_a_period_takes_the_period_start(self):
+        p = page(
+            line(100.0, (DATE_X, "No V 01"), (DESC_X, "APPLIEDIND/PAYABLES"),
+                 (LEFT_X, "329.41"), (BALANCE_X, "478,671.60")),
+            line(112.0, (DATE_X, "11/01/2024"), (DESC_X, "NEXT"), (LEFT_X, "1,465.95"),
+                 (BALANCE_X, "480,137.55")),
+        )
+        parsed = parse_rows(
+            [p], profile(), opening_balance=Decimal("478342.19"),
+            period=DateRange(start=date(2024, 11, 1), end=date(2024, 11, 29)),
+        )
+        first = parsed.transactions[0]
+        assert (first.date, first.deposit) == (date(2024, 11, 1), Decimal("329.41"))
+        assert first.date_inherited is True
+
+    def test_with_no_date_to_inherit_the_row_is_left_out_and_counted(self):
+        p = page(
+            line(100.0, (DATE_X, "No V 01"), (DESC_X, "FIRST"), (LEFT_X, "329.41"),
+                 (BALANCE_X, "478,671.60")),
+        )
+        parsed = parse_rows([p], profile(), opening_balance=Decimal("478342.19"))
+        assert parsed.transactions == []
+        assert any("date" in w and "left out" in w for w in parsed.warnings)
+
+    def test_a_line_whose_balance_does_not_continue_the_chain_is_not_a_row(self):
+        p = page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "FIRST"), (LEFT_X, "100.00"),
+                 (BALANCE_X, "1,100.00")),
+            line(112.0, (DESC_X, "Total deposits"), (LEFT_X, "600.00"), (BALANCE_X, "1,420.00")),
+        )
+        parsed = parse_rows([p], profile(), opening_balance=Decimal("1000.00"))
+        assert len(parsed.transactions) == 1
+
+    def test_the_side_the_page_gives_must_agree_with_the_chain(self):
+        p = page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "FIRST"), (LEFT_X, "100.00"),
+                 (BALANCE_X, "1,100.00")),
+            # A negative amount says withdrawal; the balance went up by that much.
+            line(112.0, (DESC_X, "ODD"), (LEFT_X, "-50.00"), (BALANCE_X, "1,150.00")),
+        )
+        parsed = parse_rows([p], profile(), opening_balance=Decimal("1000.00"))
+        assert len(parsed.transactions) == 1
+
+    def test_without_a_balance_column_nothing_is_inherited(self):
+        p = page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "FIRST"), (LEFT_X, "100.00")),
+            line(112.0, (DESC_X, "SECOND"), (LEFT_X, "50.00")),
+        )
+        parsed = parse_rows([p], profile(balance_column=None))
+        assert len(parsed.transactions) == 1
+        assert parsed.transactions[0].description == "FIRST"
+
+    def test_an_amount_is_never_inferred_and_a_date_inherited_on_the_same_row(self):
+        """Two doubts on one row is a row nothing on the page evidences."""
+        p = page(
+            line(100.0, (DATE_X, "01/01/2025"), (DESC_X, "FIRST"), (LEFT_X, "100.00"),
+                 (BALANCE_X, "1,100.00")),
+            line(112.0, (DESC_X, "GHOST"), (BALANCE_X, "1,150.00")),
+        )
+        parsed = parse_rows([p], profile(), opening_balance=Decimal("1000.00"))
+        assert len(parsed.transactions) == 1
