@@ -9,6 +9,13 @@ dependencies = [
     "pydantic>=2.9",
     "anthropic>=0.40",
     "rapidocr-onnxruntime>=1.4",
+    # rapidocr asks for opencv-python, whose wheel links a windowing system:
+    # libGL and libxcb, and behind libGL a software OpenGL stack — 180 MB of
+    # renderer in a service that draws nothing. The headless wheel is the same
+    # library without the GUI module, so the override below drops the GUI one
+    # and this pulls in its replacement; `import cv2` resolves to the same
+    # `cv2` either way.
+    "opencv-python-headless>=4.10",
     "openai>=3.7.0",
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.4",
@@ -18,8 +25,16 @@ dependencies = [
 [project.scripts]
 statement-tieout = "statement_tieout.cli:main"
 
+[tool.uv]
+# A marker that is never true removes the requirement rather than resolving it.
+override-dependencies = ["opencv-python; sys_platform == 'nonexistent'"]
+
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.6"]
+dev = [
+    "pytest>=8.3",
+    "reportlab>=5.0.1",
+    "ruff>=0.6",
+]
 
 [build-system]
 requires = ["hatchling"]

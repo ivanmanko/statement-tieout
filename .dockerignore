@@ -1,0 +1,14 @@
+.git
+.venv
+.env
+.draft
+.claude
+.pytest_cache
+.ruff_cache
+__pycache__
+**/__pycache__
+samples
+evals/reports
+docs
+out
+.DS_Store

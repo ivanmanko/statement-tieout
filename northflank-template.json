@@ -1,0 +1,110 @@
+{
+  "apiVersion": "v1.2",
+  "name": "statement-tieout",
+  "description": "Statement Tie-Out: one combined service built from this repository's Dockerfile. A push to main triggers build and deploy. The LLM key arrives as a template argument and is stored in a secret group; with no key the deployment runs the deterministic path alone, which is a supported mode.",
+  "arguments": {
+    "GITHUB_REPO_URL": "https://github.com/ivanmanko/statement-tieout",
+    "LLM_API_KEY": "SET_AT_TEMPLATE_RUN"
+  },
+  "options": {
+    "autorun": true,
+    "concurrencyPolicy": "queue"
+  },
+  "spec": {
+    "kind": "Workflow",
+    "spec": {
+      "type": "sequential",
+      "steps": [
+        {
+          "kind": "Project",
+          "ref": "project",
+          "spec": {
+            "name": "statement-tieout",
+            "region": "europe-west",
+            "networking": {
+              "allowedIngressProjects": []
+            }
+          }
+        },
+        {
+          "kind": "Workflow",
+          "spec": {
+            "type": "sequential",
+            "context": {
+              "projectId": "${refs.project.id}"
+            },
+            "steps": [
+              {
+                "kind": "SecretGroup",
+                "ref": "secrets",
+                "spec": {
+                  "name": "llm-secrets",
+                  "type": "secret",
+                  "secretType": "environment-arguments",
+                  "priority": 10,
+                  "secrets": {
+                    "variables": {
+                      "LLM_PROVIDER": "openai_compatible",
+                      "LLM_API_KEY": "${args.LLM_API_KEY}",
+                      "LLM_BASE_URL": "https://api.deepseek.com",
+                      "LLM_MODEL": "deepseek-v4-flash",
+                      "LLM_THINKING": "disabled"
+                    },
+                    "files": {}
+                  },
+                  "restrictions": {
+                    "restricted": false,
+                    "nfObjects": [],
+                    "tags": []
+                  }
+                }
+              },
+              {
+                "kind": "CombinedService",
+                "ref": "service",
+                "spec": {
+                  "name": "statement-tieout",
+                  "vcsData": {
+                    "projectType": "github",
+                    "projectUrl": "${args.GITHUB_REPO_URL}",
+                    "projectBranch": "main"
+                  },
+                  "buildSettings": {
+                    "dockerfile": {
+                      "buildEngine": "kaniko",
+                      "useCache": true,
+                      "dockerWorkDir": "/",
+                      "dockerFilePath": "/Dockerfile"
+                    }
+                  },
+                  "deployment": {
+                    "instances": 1,
+                    "docker": {
+                      "configType": "default"
+                    }
+                  },
+                  "billing": {
+                    "deploymentPlan": "nf-compute-100-2",
+                    "buildPlan": "nf-compute-800-8"
+                  },
+                  "ports": [
+                    {
+                      "internalPort": 8000,
+                      "protocol": "HTTP",
+                      "name": "http",
+                      "public": true
+                    }
+                  ],
+                  "runtimeEnvironment": {},
+                  "runtimeFiles": {},
+                  "buildArguments": {},
+                  "buildFiles": {}
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
